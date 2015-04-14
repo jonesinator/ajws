@@ -1,22 +1,18 @@
-!/bin/bash
+#!/bin/bash
 
 set -e
 
 if [ "$#" -ne 5 ]; then
     echo "./$0 install DEVICE HOSTNAME USERNAME PASSWORD"
-    echo "    Where DEVICE is the device where the operating system should be installed, e.g. /dev/sda."
+    echo " Where DEVICE is the device where the operating system should be installed, e.g. /dev/sda."
     exit 1
 fi
 
-STEP=$1
-DEVICE=$2
-HOSTNAME=$3
-USERNAME=$4
-PASSWORD=$5
+STEP=$1 DEVICE=$2 HOSTNAME=$3 USERNAME=$4 PASSWORD=$5
 
 if [ "${STEP}" == "install" ]; then
     # Configure the SSD with btrfs.
-    mkfs.btrfs -L ${HOSTNAME} ${DEVICE}
+    mkfs.btrfs -f -L ${HOSTNAME} ${DEVICE}
     mount ${DEVICE} /mnt
     cd /mnt
     btrfs subvolume create __active
@@ -35,7 +31,10 @@ if [ "${STEP}" == "install" ]; then
     wget -qO - "https://www.archlinux.org/mirrorlist/?country=US&protocol=http&ip_version=4&use_mirror_status=on" | \
         sed 's/^#Server/Server/' > /etc/pacman.d/mirrorlist
     pacstrap /mnt base base-devel
-    genfstab -L -p /mnt >> /mnt/etc/fstab
+    genfstab -U -p /mnt >> /mnt/etc/fstab
+    sed -i 's/relatime,ssd,space_cache/noatime,discard,ssd,autodefrag,compress=lzo,space_cache/' /mnt/etc/fstab
+    mkdir /mnt/defvol
+    printf "LABEL=${HOSTNAME} /mnt/defvol btrfs rw,noatime,discard,ssd,autodefrag,compress=lzo,space_cache 0 0"
     cp -L -u `realpath $0` /mnt/root/bootstrap
     arch-chroot /mnt /bin/bash -c "/root/bootstrap chroot ${DEVICE} ${HOSTNAME} ${USERNAME} ${PASSWORD}"
     rm /mnt/etc/resolv.conf
@@ -53,7 +52,11 @@ elif [ "${STEP}" == "chroot" ]; then
     echo "KEYMAP=us" > /etc/vconsole.conf
     echo "FONT=lat9w-16" >> /etc/vconsole.conf
     hwclock --systohc --utc
+
+    # I know this fails due to btrfs weirdness.
+    set +e
     mkinitcpio -p linux
+    set -e
 
     # Configure non-root user.
     useradd -m -g wheel -s /bin/bash ${USERNAME}
@@ -69,6 +72,7 @@ elif [ "${STEP}" == "chroot" ]; then
     systemctl enable sshd.socket
 
     # Configure bootloader.
+    pacman --noconfirm -S grub
     grub-install --target=i386-pc --recheck --debug ${DEVICE}
     grub-mkconfig -o /boot/grub/brug.cfg
 
@@ -81,7 +85,7 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S xorg-server
     pacman --noconfirm -S xorg-xrandr
     pacman --noconfirm -S xorg-xinit
-    pacman --noconfirm -S x86-video-nouveau
+    pacman --noconfirm -S xf86-video-nouveau
     pacman --noconfirm -S rxvt-unicode
     pacman --noconfirm -S i3
 
@@ -89,39 +93,39 @@ elif [ "${STEP}" == "chroot" ]; then
     echo "exec i3" > /home/${USERNAME}/.xinitrc
     echo '[[ -z $DISPLAY && $XDG_VNTR -eq 1 ]] && exec startx' >> /home/${USERNAME}/.bash_profile
     echo "blacklist pcspkr" > /etc/modprobe.d/nobeep.conf
-    cat << 'EOF' >> /etc/X11/xorg.conf.d/20-nouveau.conf
-        Section "Monitor"
-            Identifier "DellLeft"
-            Option "PreferredMode" "26x0x1600_60.00"
-        EndSection
+    cat <<- EOF >> /etc/X11/xorg.conf.d/20-nouveau.conf
+	Section "Monitor"
+		Identifier "DellLeft"
+		Option "PreferredMode" "26x0x1600_60.00"
+	EndSection
 
-        Section "Monitor"
-            Identifier "DellRight"
-            Option "PreferredMode" "26x0x1600_60.00"
-            Option "LeftOf" "DellLeft"
-        EndSection
+	Section "Monitor"
+		Identifier "DellRight"
+		Option "PreferredMode" "26x0x1600_60.00"
+		Option "LeftOf" "DellLeft"
+	EndSection
 
-        Section "Device"
-            Identifier "nvidia card"
-            Driver "nouveau"
-            Option "Monitor-DVI-D-1" "DellLeft"
-            Option "Monitor-DVI-I-1" "DellRight"
-        EndSection
+	Section "Device"
+		Identifier "nvidia card"
+		Driver "nouveau"
+		Option "Monitor-DVI-D-1" "DellLeft"
+		Option "Monitor-DVI-I-1" "DellRight"
+	EndSection
 
-        Section "Screen"
-            Identifier "screen1"
-            Monitor "DellLeft"
-            DefaultDepth 24
-            SubSection "Display"
-                Depth 24
-                Virtual 2560 1600
-            EndSubSection
-            Device "nvidia card"
-        EndSection
+	Section "Screen"
+		Identifier "screen1"
+		Monitor "DellLeft"
+		DefaultDepth 24
+		SubSection "Display"
+		Depth 24
+		Virtual 2560 1600
+		EndSubSection
+		Device "nvidia card"
+	EndSection
 
-        Section "ServerLayout"
-            Identifier "layout1"
-            Screen "screen1"
-        EndSection
-    EOF
+	Section "ServerLayout"
+		Identifier "layout1"
+		Screen "screen1"
+	EndSection
+	EOF
 fi
