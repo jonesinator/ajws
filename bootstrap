@@ -39,7 +39,7 @@ if [ "${STEP}" == "install" ]; then
     arch-chroot /mnt /bin/bash -c "/root/bootstrap chroot ${DEVICE} ${HOSTNAME} ${USERNAME} ${PASSWORD}"
     rm /mnt/etc/resolv.conf
     ln -sf /run/systemd/resolve/resolv.conf /mnt/etc/resolv.conf
-    umount /mnt
+    sync && umount -R /mnt
     shutdown -r now
 
 elif [ "${STEP}" == "chroot" ]; then
