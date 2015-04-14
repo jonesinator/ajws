@@ -38,11 +38,12 @@ if [ "${STEP}" == "install" ]; then
     genfstab -U -p /mnt >> /mnt/etc/fstab
     sed -i 's/relatime,ssd,space_cache/noatime,discard,ssd,autodefrag,compress=lzo,space_cache/' /mnt/etc/fstab
     mkdir /mnt/defvol
-    printf "LABEL=${HOSTNAME} /mnt/defvol btrfs rw,noatime,discard,ssd,autodefrag,compress=lzo,space_cache 0 0"
+    printf "LABEL=${HOSTNAME} /mnt/defvol btrfs rw,noatime,discard,ssd,autodefrag,compress=lzo,space_cache 0 0" >> /mnt/etc/fstab
     cp -L -u `realpath $0` /mnt/root/bootstrap
     arch-chroot /mnt /bin/bash -c "/root/bootstrap chroot ${DEVICE} ${HOSTNAME} ${USERNAME} ${PASSWORD}"
     rm /mnt/etc/resolv.conf
     ln -sf /run/systemd/resolve/resolv.conf /mnt/etc/resolv.conf
+    rm /mnt/root/bootstrap
     sync && umount -R /mnt
     shutdown -r now
 
