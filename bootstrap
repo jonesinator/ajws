@@ -101,11 +101,12 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S i3
     pacman --noconfirm -S dmenu
     pacman --noconfirm -S alsa-utils
+    pacman --noconfirm -S firefox
     pacman --noconfirm -S gstreamer0.10-base
     pacman --noconfirm -S gstreamer0.10
     pacman --noconfirm -S hipchat
     pacman --noconfirm -S yaourt
-    
+
     # Stupid yaourt can't run as root. So run it as non-root but first
     # change sudoers so we can run it without a password.
     echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
@@ -119,16 +120,20 @@ elif [ "${STEP}" == "chroot" ]; then
     systemctl enable sshd.socket
 
     # Do some vim configuration.
-    mkdir -p ~/.vim/autoload ~/.vim/bundle
-    curl -LSso ~/.vim/autoload/pathogen.vim https://tpo.pe/pathogen.vim
-    cd ~/.vim/bundle
-    git clone git://github.com/tpope/vim-sensible.git
-    git clone git://github.com/altercation/vim-colors-solarized.git
+    su -c "mkdir -p ~/.vim/autoload ~/.vim/bundle" ${USERNAME}
+    su -c "curl -LSso ~/.vim/autoload/pathogen.vim https://tpo.pe/pathogen.vim" ${USERNAME}
+    su -c "cd ~/.vim/bundle && git clone git://github.com/tpope/vim-sensible.git" ${USERNAME}
+    su -c "cd ~/.vim/bundle && git clone git://github.com/altercation/vim-colors-solarized.git" ${USERNAME}
 
     # Prepare some config files.
-    echo "exec i3" > /home/${USERNAME}/.xinitrc
-    echo '[[ -z $DISPLAY && $XDG_VTNR -eq 1 ]] && exec startx' >> /home/${USERNAME}/.bash_profile
-    echo "blacklist pcspkr" > /etc/modprobe.d/nobeep.conf
+    cat <<- 'EOF' >> /etc/modprobe.d/nobeep.conf'
+		blacklist pcspkr
+		EOF
+
+    cat <<- 'EOF' >> /home/${USERNAME}/.bash_profile
+		[[ -z $DISPLAY && $XDG_VTNR -eq 1 ]] && exec startx
+		EOF
+
     cat <<- 'EOF' >> /etc/X11/xorg.conf.d/20-nouveau.conf
 		Section "Monitor"
 		    Identifier "DellLeft"
@@ -182,6 +187,13 @@ elif [ "${STEP}" == "chroot" ]; then
 		set cursorline
 		set hlsearch
 		EOF
+    chown aaronj:wheel /home/${USERNAME}/.vimrc
+
+    cat <<- 'EOF' >> /home/${USERNAME}/.xinitrc
+		xrdb -merge ~/.Xresources
+		exec i3
+		EOF
+    chown aaronj:wheel /home/${USERNAME}/~/.xinitrc
 
     cat <<- 'EOF' >> /home/${USERNAME}/.Xresources
 		#define S_yellow        #b58900
@@ -255,4 +267,5 @@ elif [ "${STEP}" == "chroot" ]; then
 		URxvt.matcher.button: 1
 		URxvt.intensityStyles: false
 		EOF
+    chown aaronj:wheel /home/${USERNAME}/.Xresources
 fi
