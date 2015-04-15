@@ -11,7 +11,7 @@ Finally, once the root prompt is available run the following commands (replacing
 hostname, username, and password with a real values):
 
     wget https://raw.githubusercontent.com/jonesinator/ajws/master/bootstrap
-    /bin/bash bootstrap
+    /bin/bash bootstrap install hostname username password
 
 This will bootstrap the system and reboot when the bootstrapping is complete.
 The i3 window manager should boot upon first login as the non-root user.
