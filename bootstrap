@@ -131,7 +131,7 @@ elif [ "${STEP}" == "chroot" ]; then
 		EOF
 
     cat <<- 'EOF' >> /home/${USERNAME}/.bash_profile
-		[[ -z $DISPLAY && $XDG_VTNR -eq 1 ]] && exec startx
+		[[ -z $DISPLAY && $XDG_VTNR -eq 1 ]] && xrdb -merge ~/.Xresources && exec startx
 		EOF
 
     cat <<- 'EOF' >> /etc/X11/xorg.conf.d/20-nouveau.conf
