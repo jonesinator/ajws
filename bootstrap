@@ -105,7 +105,12 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S gstreamer0.10
     pacman --noconfirm -S hipchat
     pacman --noconfirm -S yaourt
-    yaourt --noconfirm -S spotify
+    
+    # Stupid yaourt can't run as root. So run it as non-root but first
+    # change sudoers so we can run it without a password.
+    echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+    sudo -u aaronj yaourt --noconfirm -S spotify
+    sed -i '/aaronj/d' /etc/sudoers
 
     # Configure networking.
     printf '[Match]\nName=en*\n[Network]\nDHCP=yes' > /etc/systemd/network/dhcp.network
