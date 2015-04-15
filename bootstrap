@@ -50,7 +50,7 @@ if [ "${STEP}" == "install" ]; then
 elif [ "${STEP}" == "chroot" ]; then
     # Standard boostrapping setup.
     echo ${HOSTNAME} > /etc/hostname
-    ln -sf /usr/share/zoneinfo/America/Denver > /etc/localtime
+    ln -sf /usr/share/zoneinfo/America/Denver /etc/localtime
     sed -i '/^#en_US.UTF-8/s/^#//' /etc/locale.gen
     locale-gen
     echo "LANG=en_US.UTF-8" > /etc/locale.conf
@@ -59,22 +59,13 @@ elif [ "${STEP}" == "chroot" ]; then
     hwclock --systohc --utc
 
     # I know this fails due to btrfs weirdness.
-    set +e
-    mkinitcpio -p linux
-    set -e
+    set +e; mkinitcpio -p linux; set -e
 
     # Configure non-root user.
     useradd -m -g wheel -s /bin/bash ${USERNAME}
     echo "root:${PASSWORD}" | chpasswd
     echo "${USERNAME}:${PASSWORD}" | chpasswd
     sed -i '/^# %wheel ALL=(ALL) ALL/s/^# //' /etc/sudoers
-
-    # Configure networking.
-    printf '[Match]\nName=en*\n[Network]\nDHCP=yes' > /etc/systemd/network/dhcp.network
-    pacman --noconfirm -S openssh
-    systemctl enable systemd-networkd.service
-    systemctl enable systemd-resolved.service
-    systemctl enable sshd.socket
 
     # Configure bootloader.
     pacman --noconfirm -S grub
@@ -84,20 +75,21 @@ elif [ "${STEP}" == "chroot" ]; then
     # Configure pacman for atlassian and yaourt.
     curl https://www.hipchat.com/keys/hipchat-linux.key | GNUPGHOME=/etc/pacman.d/gnupg gpg --import
     cat <<- 'EOF' >> /etc/pacman.conf
-	[atlassian]
-	SigLevel = PackageOptional DatabaseRequired TrustAll
-	Server = http://downloads.hipchat.com/linux/arch/$arch
-	[archlinuxfr]
-	SigLevel = Never
-	Server = http://repo.archlinux.fr/$arch
-	EOF
+		[atlassian]
+		SigLevel = PackageOptional DatabaseRequired TrustAll
+		Server = http://downloads.hipchat.com/linux/arch/$arch
+		[archlinuxfr]
+		SigLevel = Never
+		Server = http://repo.archlinux.fr/$arch
+		EOF
 
     # Update the system and install several packages.
     pacman --noconfirm -Syyu
+    pacman --noconfirm -S openssh
     pacman --noconfirm -S ttf-inconsolata
     pacman --noconfirm -S git
     pacman --noconfirm -S mercurial
-    pacman --noconfirm -S vim
+    pacman --noconfirm -S gvim
     pacman --noconfirm -S sudo
     pacman --noconfirm -S xorg-server
     pacman --noconfirm -S xorg-xrandr
@@ -107,6 +99,7 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S xf86-video-nouveau
     pacman --noconfirm -S rxvt-unicode
     pacman --noconfirm -S i3
+    pacman --noconfirm -S dmenu
     pacman --noconfirm -S alsa-utils
     pacman --noconfirm -S gstreamer0.10-base
     pacman --noconfirm -S gstreamer0.10
@@ -114,45 +107,147 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S yaourt
     yaourt --noconfirm -S spotify
 
+    # Configure networking.
+    printf '[Match]\nName=en*\n[Network]\nDHCP=yes' > /etc/systemd/network/dhcp.network
+    systemctl enable systemd-networkd.service
+    systemctl enable systemd-resolved.service
+    systemctl enable sshd.socket
+
+    # Do some vim configuration.
+    mkdir -p ~/.vim/autoload ~/.vim/bundle
+    curl -LSso ~/.vim/autoload/pathogen.vim https://tpo.pe/pathogen.vim
+    cd ~/.vim/bundle
+    git clone git://github.com/tpope/vim-sensible.git
+    git clone git://github.com/altercation/vim-colors-solarized.git
+
     # Prepare some config files.
     echo "exec i3" > /home/${USERNAME}/.xinitrc
     echo '[[ -z $DISPLAY && $XDG_VTNR -eq 1 ]] && exec startx' >> /home/${USERNAME}/.bash_profile
     echo "blacklist pcspkr" > /etc/modprobe.d/nobeep.conf
     cat <<- 'EOF' >> /etc/X11/xorg.conf.d/20-nouveau.conf
-	Section "Monitor"
-	    Identifier "DellLeft"
-	    Option "PreferredMode" "26x0x1600_60.00"
-	    DisplaySize 641.3 401.8
-	EndSection
+		Section "Monitor"
+		    Identifier "DellLeft"
+		    Option "PreferredMode" "26x0x1600_60.00"
+		    DisplaySize 641 402
+		EndSection
 
-	Section "Monitor"
-	    Identifier "DellRight"
-	    Option "PreferredMode" "26x0x1600_60.00"
-	    Option "LeftOf" "DellLeft"
-	    DisplaySize 641.3 401.8
-	EndSection
+		Section "Monitor"
+		    Identifier "DellRight"
+		    Option "PreferredMode" "26x0x1600_60.00"
+		    Option "LeftOf" "DellLeft"
+		    DisplaySize 641 402
+		EndSection
 
-	Section "Device"
-	    Identifier "nvidia card"
-	    Driver "nouveau"
-	    Option "Monitor-DVI-D-1" "DellLeft"
-	    Option "Monitor-DVI-I-1" "DellRight"
-	EndSection
+		Section "Device"
+		    Identifier "nvidia card"
+		    Driver "nouveau"
+		    Option "Monitor-DVI-D-1" "DellLeft"
+		    Option "Monitor-DVI-I-1" "DellRight"
+		EndSection
 
-	Section "Screen"
-	    Identifier "screen1"
-	    Monitor "DellLeft"
-	    DefaultDepth 24
-	    SubSection "Display"
-	        Depth 24
-	        Virtual 2560 1600
-	    EndSubSection
-	    Device "nvidia card"
-	EndSection
+		Section "Screen"
+		    Identifier "screen1"
+		    Monitor "DellLeft"
+		    DefaultDepth 24
+		    SubSection "Display"
+		        Depth 24
+		        Virtual 2560 1600
+		    EndSubSection
+		    Device "nvidia card"
+		EndSection
 
-	Section "ServerLayout"
-	    Identifier "layout1"
-	    Screen "screen1"
-	EndSection
-	EOF
+		Section "ServerLayout"
+		    Identifier "layout1"
+		    Screen "screen1"
+		EndSection
+		EOF
+
+    cat <<- 'EOF' >> /home/${USERNAME}/.vimrc
+		set nocompatible
+		set t_Co=16
+		call pathogen#infect()
+		syntax on
+		set background=dark
+		colorscheme solarized
+		filetype plugin indent on
+		set shiftwidth=4
+		set tabstop=4
+		set expandtab
+		set number
+		set cursorline
+		set hlsearch
+		EOF
+
+    cat <<- 'EOF' >> /home/${USERNAME}/.Xresources
+		#define S_yellow        #b58900
+		#define S_orange        #cb4b16
+		#define S_red           #dc322f
+		#define S_magenta       #d33682
+		#define S_violet        #6c71c4
+		#define S_blue          #268bd2
+		#define S_cyan          #2aa198
+		#define S_green         #859900
+
+		! Dark
+		#define S_base03        #002b36
+		#define S_base02        #073642
+		#define S_base01        #586e75
+		#define S_base00        #657b83
+		#define S_base0         #839496
+		#define S_base1         #93a1a1
+		#define S_base2         #eee8d5
+		#define S_base3         #fdf6e3
+
+		! Light
+		! #define S_base03        #fdf6e3
+		! #define S_base02        #eee8d5
+		! #define S_base01        #93a1a1
+		! #define S_base00        #839496
+		! #define S_base0         #657b83
+		! #define S_base1         #586e75
+		! #define S_base2         #073642
+		! #define S_base3         #002b36
+
+		URxvt*background:              S_base03
+		URxvt*foreground:              S_base0
+		URxvt*fading:                  40
+		URxvt*fadeColor:               S_base03
+		URxvt*cursorColor:             S_base1
+		URxvt*pointerColorBackground:  S_base01
+		URxvt*pointerColorForeground:  S_base1
+
+		URxvt*color0:                  S_base02
+		URxvt*color1:                  S_red
+		URxvt*color2:                  S_green
+		URxvt*color3:                  S_yellow
+		URxvt*color4:                  S_blue
+		URxvt*color5:                  S_magenta
+		URxvt*color6:                  S_cyan
+		URxvt*color7:                  S_base2
+		URxvt*color8:                  S_base03
+		URxvt*color9:                  S_orange
+		URxvt*color10:                 S_base01
+		URxvt*color11:                 S_base00
+		URxvt*color12:                 S_base0
+		URxvt*color13:                 S_violet
+		URxvt*color14:                 S_base1
+		URxvt*color15:                 S_base3
+
+		! urxvt
+		URxvt*buffered: true
+		URxvt*cursorBlink: true
+		URxvt*underlineColor: yellow
+		URxvt*font:  xft:inconsolata:size=12:antialias=true
+		URxvt*depth: 32
+		URxvt*borderless: 1
+		URxvt*scrollBar: false
+		URxvt*loginShell: true
+		Urxvt*secondaryScroll:  true    # Enable Shift-PageUp/Down in screen
+		URxvt*saveLines: 50000
+		URxvt*termName: rxvt-unicode
+		URxvt.perl-ext-common: default,matcher
+		URxvt.urlLauncher: firefox
+		URxvt.matcher.button: 1
+		URxvt.intensityStyles: false
+		EOF
 fi
