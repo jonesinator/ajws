@@ -262,8 +262,7 @@ elif [ "${STEP}" == "chroot" ]; then
 		Urxvt*secondaryScroll:  true    # Enable Shift-PageUp/Down in screen
 		URxvt*saveLines: 50000
 		URxvt*termName: rxvt-unicode
-		URxvt.perl-ext-common: default,matcher
-		URxvt.urlLauncher: firefox
+		URxvt.perl-ext-common: default
 		URxvt.matcher.button: 1
 		URxvt.intensityStyles: false
 		EOF
