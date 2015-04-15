@@ -96,7 +96,7 @@ elif [ "${STEP}" == "chroot" ]; then
 
     # Prepare some config files.
     echo "exec i3" > /home/${USERNAME}/.xinitrc
-    echo '[[ -z $DISPLAY && $XDG_VNTR -eq 1 ]] && exec startx' >> /home/${USERNAME}/.bash_profile
+    echo '[[ -z $DISPLAY && $XDG_VTNR -eq 1 ]] && exec startx' >> /home/${USERNAME}/.bash_profile
     echo "blacklist pcspkr" > /etc/modprobe.d/nobeep.conf
     cat <<- EOF >> /etc/X11/xorg.conf.d/20-nouveau.conf
 	Section "Monitor"
