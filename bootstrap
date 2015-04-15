@@ -126,7 +126,7 @@ elif [ "${STEP}" == "chroot" ]; then
     su -c "cd ~/.vim/bundle && git clone git://github.com/altercation/vim-colors-solarized.git" ${USERNAME}
 
     # Prepare some config files.
-    cat <<- 'EOF' >> /etc/modprobe.d/nobeep.conf'
+    cat <<- 'EOF' >> /etc/modprobe.d/nobeep.conf
 		blacklist pcspkr
 		EOF
 
@@ -190,10 +190,10 @@ elif [ "${STEP}" == "chroot" ]; then
     chown aaronj:wheel /home/${USERNAME}/.vimrc
 
     cat <<- 'EOF' >> /home/${USERNAME}/.xinitrc
-		xrdb -merge ~/.Xresources
+		xrdb -merge /home/${USERNAME}/.Xresources
 		exec i3
 		EOF
-    chown aaronj:wheel /home/${USERNAME}/~/.xinitrc
+    chown aaronj:wheel /home/${USERNAME}/.xinitrc
 
     cat <<- 'EOF' >> /home/${USERNAME}/.Xresources
 		#define S_yellow        #b58900
