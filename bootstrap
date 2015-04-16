@@ -41,8 +41,6 @@ if [ "${STEP}" == "install" ]; then
     printf "LABEL=${HOSTNAME} /mnt/defvol btrfs rw,noatime,discard,ssd,autodefrag,compress=lzo,space_cache 0 0" >> /mnt/etc/fstab
     cp -L -u `realpath $0` /mnt/root/bootstrap
     arch-chroot /mnt /bin/bash -c "/root/bootstrap chroot ${DEVICE} ${HOSTNAME} ${USERNAME} ${PASSWORD}"
-    rm /mnt/etc/resolv.conf
-    ln -sf /run/systemd/resolve/resolv.conf /mnt/etc/resolv.conf
     rm /mnt/root/bootstrap
     sync && umount -R /mnt
     shutdown -r now
@@ -133,8 +131,6 @@ elif [ "${STEP}" == "chroot" ]; then
     # Configure networking.
     systemctl enable dhcpcd.service
     systemctl enable sshd.socket
-    rm /etc/resolv.conf
-    touch /etc/resolv.conf
 
     # Do some vim configuration.
     su -c "mkdir -p ~/.vim/autoload ~/.vim/bundle" ${USERNAME}
