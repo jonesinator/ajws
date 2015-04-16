@@ -131,10 +131,10 @@ elif [ "${STEP}" == "chroot" ]; then
     sed -i '/aaronj/d' /etc/sudoers
 
     # Configure networking.
-    #printf '[Match]\nName=en*\n[Network]\nDHCP=yes' > /etc/systemd/network/dhcp.network
-    #systemctl enable systemd-networkd.service
-    #systemctl enable systemd-resolved.service
+    systemctl enable dhcpcd.service
     systemctl enable sshd.socket
+    rm /etc/resolv.conf
+    touch /etc/resolv.conf
 
     # Do some vim configuration.
     su -c "mkdir -p ~/.vim/autoload ~/.vim/bundle" ${USERNAME}
@@ -148,7 +148,7 @@ elif [ "${STEP}" == "chroot" ]; then
 		EOF
 
     cat <<- 'EOF' >> /home/${USERNAME}/.bash_profile
-		[[ -z $DISPLAY && $XDG_VTNR -eq 1 ]] && xrdb -merge ~/.Xresources && exec startx
+		[[ -z $DISPLAY && $XDG_VTNR -eq 1 ]] && exec startx
 		EOF
 
     cat <<- 'EOF' >> /etc/X11/xorg.conf.d/20-nouveau.conf
