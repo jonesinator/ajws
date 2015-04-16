@@ -116,7 +116,7 @@ elif [ "${STEP}" == "chroot" ]; then
     groupadd crontab
     #INSTALL BASHUTILS 0.8.11 and 0.8.12
     #INSTALL DISTBOX
-    touch /etc/distbox/user.conf
+    #touch /etc/distbox/user.conf
     cat <<- 'EOF' >> /etc/profile.d/distbox.sh
 		#!/bin/bash
 		export PATH=$PATH:/bin:/usr/sbin
