@@ -107,6 +107,23 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S hipchat
     pacman --noconfirm -S yaourt
 
+    # Distbox/chroot stuff.
+    pacman --noconfirm -S xmlstartlet
+    pacman --noconfirm -S pigz
+    pacman --noconfirm -S wget
+    pacman --noconfirm -S dnsutils
+    pacman --noconfirm -S cronie
+    touch /etc/distbox/user.conf
+    groupadd crontab
+    #INSTALL BASHUTILS 0.8.11 and 0.8.12
+    #INSTALL DISTBOX
+    cat <<- 'EOF' >> /etc/profile.d/distbox.sh
+		#!/bin/bash
+		export PATH=$PATH:/bin:/usr/sbin
+		EOF
+    chmod a+x /etc/profile.d/distbox.sh
+    #distbox install
+
     # Stupid yaourt can't run as root. So run it as non-root but first
     # change sudoers so we can run it without a password.
     echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
@@ -190,7 +207,7 @@ elif [ "${STEP}" == "chroot" ]; then
     chown aaronj:wheel /home/${USERNAME}/.vimrc
 
     cat <<- 'EOF' >> /home/${USERNAME}/.xinitrc
-		xrdb -merge /home/${USERNAME}/.Xresources
+		xrdb -merge ~/.Xresources
 		exec i3
 		EOF
     chown aaronj:wheel /home/${USERNAME}/.xinitrc
