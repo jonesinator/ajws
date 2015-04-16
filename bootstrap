@@ -108,7 +108,7 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S yaourt
 
     # Distbox/chroot stuff.
-    pacman --noconfirm -S xmlstartlet
+    pacman --noconfirm -S xmlstarlet
     pacman --noconfirm -S pigz
     pacman --noconfirm -S wget
     pacman --noconfirm -S dnsutils
@@ -131,9 +131,9 @@ elif [ "${STEP}" == "chroot" ]; then
     sed -i '/aaronj/d' /etc/sudoers
 
     # Configure networking.
-    printf '[Match]\nName=en*\n[Network]\nDHCP=yes' > /etc/systemd/network/dhcp.network
-    systemctl enable systemd-networkd.service
-    systemctl enable systemd-resolved.service
+    #printf '[Match]\nName=en*\n[Network]\nDHCP=yes' > /etc/systemd/network/dhcp.network
+    #systemctl enable systemd-networkd.service
+    #systemctl enable systemd-resolved.service
     systemctl enable sshd.socket
 
     # Do some vim configuration.
