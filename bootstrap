@@ -55,6 +55,7 @@ elif [ "${STEP}" == "chroot" ]; then
     echo "KEYMAP=us" > /etc/vconsole.conf
     echo "FONT=lat9w-16" >> /etc/vconsole.conf
     hwclock --systohc --utc
+    systemctl enable dhcpcd.service
 
     # I know this fails due to btrfs weirdness.
     set +e; mkinitcpio -p linux; set -e
@@ -105,32 +106,103 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S hipchat
     pacman --noconfirm -S yaourt
 
+    # Stupid yaourt can't run as root. So run it as non-root but first change
+    # sudoers so we can run it without a password. Undo that when we're done.
+    echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+    sudo -u aaronj yaourt --noconfirm -S jre
+    sudo -u aaronj yaourt --noconfirm -S spotify
+    sudo -u aaronj yaourt --noconfirm -S start-stop-daemon
+    sed -i "/${USERNAME}/d" /etc/sudoers
+
     # Distbox/chroot stuff.
-    pacman --noconfirm -S xmlstarlet
-    pacman --noconfirm -S pigz
-    pacman --noconfirm -S wget
-    pacman --noconfirm -S dnsutils
-    pacman --noconfirm -S cronie
-    groupadd crontab
-    #INSTALL BASHUTILS 0.8.11 and 0.8.12
-    #INSTALL DISTBOX
-    #touch /etc/distbox/user.conf
+    cd ~/
     cat <<- 'EOF' >> /etc/profile.d/solidfire.sh
 		#!/bin/bash
 		export PATH=$PATH:/bin:/sbin:/usr/sbin
 		EOF
     chmod a+x /etc/profile.d/solidfire.sh
-    #distbox install
+    pacman --noconfirm -S jq
+    pacman --noconfirm -S distcc
+    pacman --noconfirm -S xmlstarlet
+    pacman --noconfirm -S pigz
+    pacman --noconfirm -S wget
+    pacman --noconfirm -S dnsutils
+    pacman --noconfirm -S cronie
+    pacman --noconfirm -S lsb-release
+    groupadd crontab
+    groupadd sshd
+    useradd -g sshd -c 'sshd privsep' -d /var/empty -s /bin/false sshd 
+    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.7.9_amd64.tgz
+    tar -C / -xvf bashutils-sfdev-0.7.9_amd64.tgz /usr
+    rm bashutils-sfdev-0.7.9_amd64.tgz
+    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.8.11_amd64.tgz
+    tar -C / -xvf bashutils-sfdev-0.8.11_amd64.tgz /usr
+    rm bashutils-sfdev-0.8.11_amd64.tgz
+    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.8.12_amd64.tgz
+    tar -C / -xvf bashutils-sfdev-0.8.11_amd64.tgz /usr
+    rm bashutils-sfdev-0.8.12_amd64.tgz
+    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/murder-sfdev-0.1.2-p1_amd64.tgz
+    tar -C / -xvf murder-sfdev-0.1.2-p1_amd64.tgz /usr/local/
+    mv /usr/local/lib/python2.7/dist-packages/murder-0.1.2-p1 /usr/lib/python2.7/site-packages
+    rm -rf /usr/local/lib/python2.7
+    rm murder-sfdev-0.1.2-p1_amd64.tgz
+    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/distbox_1.7_amd64.tgz
+    tar -C / -xvf distbox_1.7_amd64.tgz /etc/distbox
+    tar -C / -xvf distbox_1.7_amd64.tgz /usr
+    cp -r /usr/lib64/systemd /usr/lib
+    rm -rf /usr/lib64
+    rm distbox_1.7_amd64.tgz
+    touch /etc/distbox/user.conf
+    distbox install
+    systemctl enable distbox.service
 
-    # Stupid yaourt can't run as root. So run it as non-root but first
-    # change sudoers so we can run it without a password.
-    echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-    sudo -u aaronj yaourt --noconfirm -S spotify
-    sed -i '/aaronj/d' /etc/sudoers
-
-    # Configure networking.
-    systemctl enable dhcpcd.service
+    # Configure ssh.
     systemctl enable sshd.socket
+    su -c "mkdir ~/.ssh" ${USERNAME}
+    su -c "cd ~/.ssh && wget http://bdr-jenkins.eng.solidfire.net/keys/solidfire_dev_rsa.pub" ${USERNAME}
+    su -c "cd ~/.ssh && wget http://bdr-jenkins.eng.solidfire.net/keys/solidfire_dev_rsa" ${USERNAME}
+    su -c "chmod 600 ~/.ssh/solidfire_dev_rsa" ${USERNAME}
+    cat <<- EOF >> /home/${USERNAME}/.ssh/config
+		Host ${HOSTNAME} ${HOSTNAME}.corp.solidfire.net
+		    ForwardX11 yes
+		    ForwardX11Trusted yes
+		    User ${USERNAME}
+		
+		# Kiln
+		Host solidfire.kilnhg.com
+		    IdentityFile ~/.ssh/kiln_rsa
+		
+		# Clients to possibly run GUI apps on
+		Host 192.168.135.* 172.26.75.* 172.26.8?.* 172.16.15?.*
+		    ForwardX11 yes
+		    ForwardX11Trusted yes
+		    User root
+		    IdentityFile ~/.ssh/solidfire_dev_rsa
+		
+		# Options for SolidFire nodes
+		Host 192.168.133.* 172.26.65.* 192.168.139.* 172.24.65.* 172.24.58.* 172.30.65.*
+		    User sfadmin
+		    IdentityFile ~/.ssh/solidfire_dev_rsa
+		
+		# Options for all hosts
+		Host *
+		    AddressFamily inet
+		    CheckHostIp no
+		    Cipher arcfour256
+		    ConnectTimeout 20
+		    ConnectionAttempts 1
+		    GSSAPIAuthentication no
+		    HashKnownHosts no
+		    ServerAliveInterval 60
+		    ServerAliveCountMax 6
+		    StrictHostKeyChecking no
+		    TCPKeepAlive yes
+		    UserKnownHostsFile /dev/null
+		    User root
+		    ForwardX11 no
+		    ForwardX11Trusted no
+		EOF
+    chmod 664 /home/${USERNAME}/.ssh/config
 
     # Do some vim configuration.
     su -c "mkdir -p ~/.vim/autoload ~/.vim/bundle" ${USERNAME}
