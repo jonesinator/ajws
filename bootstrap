@@ -93,7 +93,7 @@ elif [ "${STEP}" == "chroot" ]; then
     # Update the system and install several packages.
     pacman --noconfirm -Syyu
     pacman --noconfirm -S openssh
-    pacman --noconfirm -S ttf-inconsolata
+    #pacman --noconfirm -S ttf-inconsolata
     pacman --noconfirm -S git
     pacman --noconfirm -S mercurial
     pacman --noconfirm -S gvim
@@ -109,7 +109,6 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S dmenu
     pacman --noconfirm -S alsa-utils
     pacman --noconfirm -S firefox
-    pacman --noconfirm -S ibfonts-meta-extended
     pacman --noconfirm -S gstreamer0.10-base
     pacman --noconfirm -S gstreamer0.10
     pacman --noconfirm -S meld
@@ -124,6 +123,7 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S gdb
     pacman --noconfirm -S lua51
     pacman --noconfirm -S infinality-bundle
+    pacman --noconfirm -S ibfonts-meta-extended
     pacman --noconfirm -S hipchat
     pacman --noconfirm -S yaourt
 
