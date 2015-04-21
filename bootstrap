@@ -73,6 +73,7 @@ elif [ "${STEP}" == "chroot" ]; then
 
     # Configure pacman for atlassian, yaourt, and infinality.
     curl https://www.hipchat.com/keys/hipchat-linux.key | GNUPGHOME=/etc/pacman.d/gnupg gpg --import
+    mkdir -p /root/.gnupg
     touch /root/.gnupg/dirmngr_ldapservers.conf
     pacman-key -r 962DDE58
     pacman-key --lsign-key 962DDE58
