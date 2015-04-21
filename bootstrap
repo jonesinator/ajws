@@ -71,8 +71,10 @@ elif [ "${STEP}" == "chroot" ]; then
     grub-install --target=i386-pc --recheck ${DEVICE}
     grub-mkconfig -o /boot/grub/grub.cfg
 
-    # Configure pacman for atlassian and yaourt.
+    # Configure pacman for atlassian, yaourt, and infinality.
     curl https://www.hipchat.com/keys/hipchat-linux.key | GNUPGHOME=/etc/pacman.d/gnupg gpg --import
+    pacman-key -r 962DDE58
+    pacman-key --lsign-key 962DDE58
     cat <<- 'EOF' >> /etc/pacman.conf
 		[atlassian]
 		SigLevel = PackageOptional DatabaseRequired TrustAll
@@ -80,6 +82,10 @@ elif [ "${STEP}" == "chroot" ]; then
 		[archlinuxfr]
 		SigLevel = Never
 		Server = http://repo.archlinux.fr/$arch
+		[infinality-bundle]
+		Server = http://bohoomil.com/repo/$arch
+		[infinality-bundle-fonts]
+		Server = http://bohoomil.com/repo/fonts
 		EOF
 
     # Update the system and install several packages.
@@ -101,8 +107,21 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S dmenu
     pacman --noconfirm -S alsa-utils
     pacman --noconfirm -S firefox
+    pacman --noconfirm -S ibfonts-meta-extended
     pacman --noconfirm -S gstreamer0.10-base
     pacman --noconfirm -S gstreamer0.10
+    pacman --noconfirm -S meld
+    pacman --noconfirm -S jq
+    pacman --noconfirm -S distcc
+    pacman --noconfirm -S xmlstarlet
+    pacman --noconfirm -S pigz
+    pacman --noconfirm -S wget
+    pacman --noconfirm -S dnsutils
+    pacman --noconfirm -S cronie
+    pacman --noconfirm -S lsb-release
+    pacman --noconfirm -S gdb
+    pacman --noconfirm -S lua51
+    pacman --noconfirm -S infinality-bundle
     pacman --noconfirm -S hipchat
     pacman --noconfirm -S yaourt
 
@@ -112,6 +131,7 @@ elif [ "${STEP}" == "chroot" ]; then
     sudo -u aaronj yaourt --noconfirm -S jre
     sudo -u aaronj yaourt --noconfirm -S spotify
     sudo -u aaronj yaourt --noconfirm -S start-stop-daemon
+    sudo -u aaronj yaourt --noconfirm -S kdiff3
     sed -i "/${USERNAME}/d" /etc/sudoers
 
     # Distbox/chroot stuff.
@@ -120,41 +140,44 @@ elif [ "${STEP}" == "chroot" ]; then
 		#!/bin/bash
 		export PATH=$PATH:/bin:/sbin:/usr/sbin
 		EOF
+    export PATH=$PATH:/bin:/sbin:/usr/sbin
     chmod a+x /etc/profile.d/solidfire.sh
-    pacman --noconfirm -S jq
-    pacman --noconfirm -S distcc
-    pacman --noconfirm -S xmlstarlet
-    pacman --noconfirm -S pigz
-    pacman --noconfirm -S wget
-    pacman --noconfirm -S dnsutils
-    pacman --noconfirm -S cronie
-    pacman --noconfirm -S lsb-release
     groupadd crontab
     groupadd sshd
-    useradd -g sshd -c 'sshd privsep' -d /var/empty -s /bin/false sshd 
-    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.7.9_amd64.tgz
-    tar -C / -xvf bashutils-sfdev-0.7.9_amd64.tgz /usr
-    rm bashutils-sfdev-0.7.9_amd64.tgz
-    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.8.11_amd64.tgz
-    tar -C / -xvf bashutils-sfdev-0.8.11_amd64.tgz /usr
-    rm bashutils-sfdev-0.8.11_amd64.tgz
-    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.8.12_amd64.tgz
-    tar -C / -xvf bashutils-sfdev-0.8.11_amd64.tgz /usr
-    rm bashutils-sfdev-0.8.12_amd64.tgz
+    useradd -g sshd -c 'sshd privsep' -d /var/empty -s /bin/false sshd
+    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.7_amd64.tgz
+    tar -C / -xvf bashutils-sfdev-0.7.amd64.tgz /usr
+    rm bashutils-sfdev-0.7_amd64.tgz
+    for i in {1..9}; do
+        wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.7.${i}_amd64.tgz
+        tar -C / -xvf bashutils-sfdev-0.7.${i}_amd64.tgz /usr
+        rm bashutils-sfdev-0.7.${i}_amd64.tgz
+    done
+    for i in {0..18}; do
+        wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.8.${i}_amd64.tgz
+        tar -C / -xvf bashutils-sfdev-0.8.${i}_amd64.tgz /usr
+        rm bashutils-sfdev-0.8.${i}_amd64.tgz
+    done
     wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/murder-sfdev-0.1.2-p1_amd64.tgz
     tar -C / -xvf murder-sfdev-0.1.2-p1_amd64.tgz /usr/local/
     mv /usr/local/lib/python2.7/dist-packages/murder-0.1.2-p1 /usr/lib/python2.7/site-packages
     rm -rf /usr/local/lib/python2.7
     rm murder-sfdev-0.1.2-p1_amd64.tgz
-    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/distbox_1.7_amd64.tgz
-    tar -C / -xvf distbox_1.7_amd64.tgz /etc/distbox
-    tar -C / -xvf distbox_1.7_amd64.tgz /usr
+    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/distbox_1.8_amd64.tgz
+    tar -C / -xvf distbox_1.8_amd64.tgz /etc/distbox
+    tar -C / -xvf distbox_1.8_amd64.tgz /usr
     cp -r /usr/lib64/systemd /usr/lib
     rm -rf /usr/lib64
-    rm distbox_1.7_amd64.tgz
+    rm distbox_1.8_amd64.tgz
     touch /etc/distbox/user.conf
     distbox install
     systemctl enable distbox.service
+
+    # Do some vim configuration.
+    su -c "mkdir -p ~/.vim/autoload ~/.vim/bundle" ${USERNAME}
+    su -c "curl -LSso ~/.vim/autoload/pathogen.vim https://tpo.pe/pathogen.vim" ${USERNAME}
+    su -c "cd ~/.vim/bundle && git clone git://github.com/tpope/vim-sensible.git" ${USERNAME}
+    su -c "cd ~/.vim/bundle && git clone git://github.com/altercation/vim-colors-solarized.git" ${USERNAME}
 
     # Configure ssh.
     systemctl enable sshd.socket
@@ -204,13 +227,6 @@ elif [ "${STEP}" == "chroot" ]; then
 		EOF
     chmod 664 /home/${USERNAME}/.ssh/config
 
-    # Do some vim configuration.
-    su -c "mkdir -p ~/.vim/autoload ~/.vim/bundle" ${USERNAME}
-    su -c "curl -LSso ~/.vim/autoload/pathogen.vim https://tpo.pe/pathogen.vim" ${USERNAME}
-    su -c "cd ~/.vim/bundle && git clone git://github.com/tpope/vim-sensible.git" ${USERNAME}
-    su -c "cd ~/.vim/bundle && git clone git://github.com/altercation/vim-colors-solarized.git" ${USERNAME}
-
-    # Prepare some config files.
     cat <<- 'EOF' >> /etc/modprobe.d/nobeep.conf
 		blacklist pcspkr
 		EOF
@@ -352,4 +368,32 @@ elif [ "${STEP}" == "chroot" ]; then
 		URxvt.intensityStyles: false
 		EOF
     chown aaronj:wheel /home/${USERNAME}/.Xresources
+
+    cat <<- 'EOF' >> /home/${USERNAME}/.hgrc
+		[ui]
+		username = Aaron Jones <aaron.jones@solidfire.com>
+		commitsubrepos = false
+
+		[auth]
+		default.prefix = https://solidfire.kilnhg.com/Code/Repositories
+		default.username = aaron.jones@solidfire.com
+
+		[extensions]
+		hgext.extdiff =
+
+		[extdiff]
+		cmd.meld =
+		cmd.kdiff3 =
+
+		[merge-tools]
+		kdiff3.args = $base $local $other -o $output
+
+		[pager]
+		pager = LESS='FSRX --tabs=4' less
+		attend = log,glog,diff
+
+		[trusted]
+		users = root, aaronj
+		EOF
+    chown aaronj:wheel /home/${USERNAME}/.hgrc
 fi
