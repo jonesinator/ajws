@@ -95,7 +95,7 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S infinality-bundle
     pacman --noconfirm -S ibfonts-meta-extended
     pacman --noconfirm -S openssh
-    #pacman --noconfirm -S ttf-inconsolata
+    pacman --noconfirm -S ttf-inconsolata
     pacman --noconfirm -S git
     pacman --noconfirm -S mercurial
     pacman --noconfirm -S gvim
