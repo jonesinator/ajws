@@ -92,6 +92,8 @@ elif [ "${STEP}" == "chroot" ]; then
 
     # Update the system and install several packages.
     pacman --noconfirm -Syyu
+    pacman --noconfirm -S infinality-bundle
+    pacman --noconfirm -S ibfonts-meta-extended
     pacman --noconfirm -S openssh
     #pacman --noconfirm -S ttf-inconsolata
     pacman --noconfirm -S git
@@ -122,8 +124,6 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S lsb-release
     pacman --noconfirm -S gdb
     pacman --noconfirm -S lua51
-    pacman --noconfirm -S infinality-bundle
-    pacman --noconfirm -S ibfonts-meta-extended
     pacman --noconfirm -S hipchat
     pacman --noconfirm -S yaourt
 
