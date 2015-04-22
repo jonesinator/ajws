@@ -116,7 +116,7 @@ if [ "$#" -eq 0 ]; then
     printf "LABEL=${HOSTNAME} /mnt/defvol btrfs rw,noatime,discard,ssd,autodefrag,compress=lzo,space_cache 0 0" >> /mnt/etc/fstab
     cp -L -u `realpath $0` /mnt/root/bootstrap
     arch-chroot /mnt /bin/bash -c \
-        "/root/bootstrap ${DEVICE} ${HOSTNAME} ${ROOT_PASSWORD1} ${USERNAME} ${USER_PASSWORD1} ${USER_FULL_NAME} ${USER_EMAIL} ${COUNTRY} ${TIMEZONE}"
+        "/root/bootstrap \"${DEVICE}\" \"${HOSTNAME}\" \"${ROOT_PASSWORD1}\" \"${USERNAME}\" \"${USER_PASSWORD1}\" \"${USER_FULL_NAME}\" \"${USER_EMAIL}\" \"${COUNTRY}\" \"${TIMEZONE}\""
     rm /mnt/root/bootstrap
     sync && umount -R /mnt
     shutdown -r now
@@ -264,8 +264,8 @@ else
     systemctl enable distbox.service
 
     # Some git configuration.
-    su -c "git config --global user.name ${USER_FULL_NAME}" ${USERNAME}
-    su -c "git config --global user.email ${USER_EMAIL}" ${USERNAME}
+    su -c "git config --global user.name \"${USER_FULL_NAME}\"" ${USERNAME}
+    su -c "git config --global user.email \"${USER_EMAIL}\"" ${USERNAME}
 
     # Some zsh/urxvt configuration.
     # TODO THEME, VIM MODE, ETC.
