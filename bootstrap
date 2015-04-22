@@ -2,19 +2,94 @@
 
 set -e
 
-if [ "$#" -ne 5 ]; then
-    echo "./$0 install DEVICE HOSTNAME USERNAME PASSWORD"
-    echo " Where DEVICE is the device where the operating system should be installed, e.g. /dev/sda."
-    exit 1
-fi
+if [ "$#" -eq 0 ]; then
+    while true; do
+        read -p "Enter the device on which Arch Linux should be installed (e.g. /dev/sda): " DEVICE
+        if [ -b "${DEVICE}" ]; then
+            break
+        else
+            echo "Device \"${DEVICE}\" does not exist!"
+        fi
+    done
 
-STEP=$1
-DEVICE=$2
-HOSTNAME=$3
-USERNAME=$4
-PASSWORD=$5
+    while true; do
+        read -p "Enter the desired hostname: " HOSTNAME
+        if [ -n "${HOSTNAME}" ]; then
+            break
+        else
+            echo "Hostname cannot be blank!"
+        fi
+    done
 
-if [ "${STEP}" == "install" ]; then
+    while true; do
+        read -s -p "Enter the desired root password: " ROOT_PASSWORD1
+        echo ""
+        read -s -p "Enter the desired root password again: " ROOT_PASSWORD2
+        echo ""
+        if [ "${ROOT_PASSWORD1}" == "${ROOT_PASSWORD2}" ]; then
+            break
+        else
+            echo "Passwords do not match!"
+        fi
+    done
+
+    while true; do
+        read -p "Enter the desired non-root username: " USERNAME
+        if [ -n "${USERNAME}" ]; then
+            break
+        else
+            echo "Non-root username cannot be blank!"
+        fi
+    done
+
+    while true; do
+        read -s -p "Enter the desired non-root password: " USER_PASSWORD1
+        echo ""
+        read -s -p "Enter the desired non-root password again: " USER_PASSWORD2
+        echo ""
+        if [ "${USER_PASSWORD1}" == "${USER_PASSWORD2}" ]; then
+            break
+        else
+            echo "Passwords do not match!"
+        fi
+    done
+
+    while true; do
+        read -p "Enter the non-root user's full name: " USER_FULL_NAME
+        if [ -n "${USER_FULL_NAME}" ]; then
+            break
+        else
+            echo "User full name cannot be blank!"
+        fi
+    done
+
+    while true; do
+        read -p "Enter the non-root user's email: " USER_EMAIL
+        if [ -n "${USER_EMAIL}" ]; then
+            break
+        else
+            echo "User email cannot be blank!"
+        fi
+    done
+
+    while true; do
+        read -p "Enter the desired country (e.g. US): " COUNTRY
+        if [ -n "${COUNTRY}" ]; then
+            break
+        else
+            echo "Country cannot be blank!"
+        fi
+    done
+
+    while true; do
+        read -p "Enter the desired timezone path (e.g. /usr/share/zoneinfo/America/Denver): " TIMEZONE
+        if [ -n "${TIMEZONE}" ]; then
+            break
+        else
+            echo "Timezone cannot be blank!"
+        fi
+    done
+
     # Configure the SSD with btrfs.
     mkfs.btrfs -f -L ${HOSTNAME} ${DEVICE}
     mount ${DEVICE} /mnt
@@ -32,7 +107,7 @@ if [ "${STEP}" == "install" ]; then
     mount -o subvol=__active/var ${DEVICE} /mnt/var
 
     # Bootstrap the operating system.
-    wget -qO - "https://www.archlinux.org/mirrorlist/?country=US&protocol=http&ip_version=4&use_mirror_status=on" | \
+    wget -qO - "https://www.archlinux.org/mirrorlist/?country=${COUNTRY}&protocol=http&ip_version=4&use_mirror_status=on" | \
         sed 's/^#Server/Server/' > /etc/pacman.d/mirrorlist
     pacstrap /mnt base base-devel
     genfstab -U -p /mnt >> /mnt/etc/fstab
@@ -40,15 +115,26 @@ if [ "${STEP}" == "install" ]; then
     mkdir /mnt/defvol
     printf "LABEL=${HOSTNAME} /mnt/defvol btrfs rw,noatime,discard,ssd,autodefrag,compress=lzo,space_cache 0 0" >> /mnt/etc/fstab
     cp -L -u `realpath $0` /mnt/root/bootstrap
-    arch-chroot /mnt /bin/bash -c "/root/bootstrap chroot ${DEVICE} ${HOSTNAME} ${USERNAME} ${PASSWORD}"
+    arch-chroot /mnt /bin/bash -c \
+        "/root/bootstrap ${DEVICE} ${HOSTNAME} ${ROOT_PASSWORD1} ${USERNAME} ${USER_PASSWORD1} ${USER_FULL_NAME} ${USER_EMAIL} ${COUNTRY} ${TIMEZONE}"
     rm /mnt/root/bootstrap
     sync && umount -R /mnt
     shutdown -r now
 
-elif [ "${STEP}" == "chroot" ]; then
+else
+    DEVICE=$1
+    HOSTNAME=$2
+    ROOT_PASSWORD=$3
+    USERNAME=$4
+    USER_PASSWORD=$5
+    USER_FULL_NAME=$6
+    USER_EMAIL=$7
+    COUNTRY=$8
+    TIMEZONE=$9
+
     # Standard boostrapping setup.
     echo ${HOSTNAME} > /etc/hostname
-    ln -sf /usr/share/zoneinfo/America/Denver /etc/localtime
+    ln -sf ${TIMEZONE} /etc/localtime
     sed -i '/^#en_US.UTF-8/s/^#//' /etc/locale.gen
     locale-gen
     echo "LANG=en_US.UTF-8" > /etc/locale.conf
@@ -59,12 +145,6 @@ elif [ "${STEP}" == "chroot" ]; then
 
     # I know this fails due to btrfs weirdness.
     set +e; mkinitcpio -p linux; set -e
-
-    # Configure non-root user.
-    useradd -m -g wheel -s /bin/bash ${USERNAME}
-    echo "root:${PASSWORD}" | chpasswd
-    echo "${USERNAME}:${PASSWORD}" | chpasswd
-    sed -i '/^# %wheel ALL=(ALL) ALL/s/^# //' /etc/sudoers
 
     # Configure bootloader.
     pacman --noconfirm -S grub
@@ -94,6 +174,8 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -Syyu
     pacman --noconfirm -S infinality-bundle
     pacman --noconfirm -S ibfonts-meta-extended
+    pacman --noconfirm -S zsh
+    pacman --noconfirm -S zsh-completions
     pacman --noconfirm -S openssh
     pacman --noconfirm -S ttf-inconsolata
     pacman --noconfirm -S git
@@ -110,7 +192,6 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S i3
     pacman --noconfirm -S dmenu
     pacman --noconfirm -S alsa-utils
-    pacman --noconfirm -S firefox
     pacman --noconfirm -S gstreamer0.10-base
     pacman --noconfirm -S gstreamer0.10
     pacman --noconfirm -S meld
@@ -127,13 +208,20 @@ elif [ "${STEP}" == "chroot" ]; then
     pacman --noconfirm -S hipchat
     pacman --noconfirm -S yaourt
 
+    # Configure non-root user and give all wheel users sudo access.
+    useradd -m -g wheel -s /usr/bin/zsh ${USERNAME}
+    echo "root:${ROOT_PASSWORD}" | chpasswd
+    echo "${USERNAME}:${USER_PASSWORD}" | chpasswd
+    sed -i '/^# %wheel ALL=(ALL) ALL/s/^# //' /etc/sudoers
+
     # Stupid yaourt can't run as root. So run it as non-root but first change
     # sudoers so we can run it without a password. Undo that when we're done.
     echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-    sudo -u aaronj yaourt --noconfirm -S jre
-    sudo -u aaronj yaourt --noconfirm -S spotify
-    sudo -u aaronj yaourt --noconfirm -S start-stop-daemon
-    sudo -u aaronj yaourt --noconfirm -S kdiff3
+    sudo -u ${USERNAME} yaourt --noconfirm -S jre
+    sudo -u ${USERNAME} yaourt --noconfirm -S spotify
+    sudo -u ${USERNAME} yaourt --noconfirm -S start-stop-daemon
+    sudo -u ${USERNAME} yaourt --noconfirm -S kdiff3
+    sudo -u ${USERNAME} yaourt --noconfirm -S google-chrome
     sed -i "/${USERNAME}/d" /etc/sudoers
 
     # Distbox/chroot stuff.
@@ -174,6 +262,20 @@ elif [ "${STEP}" == "chroot" ]; then
     touch /etc/distbox/user.conf
     distbox install
     systemctl enable distbox.service
+
+    # Some git configuration.
+    su -c "git config --global user.name ${USER_FULL_NAME}" ${USERNAME}
+    su -c "git config --global user.email ${USER_EMAIL}" ${USERNAME}
+
+    # Some zsh/urxvt configuration.
+    # TODO THEME, VIM MODE, ETC.
+    su -c "cd && curl -L https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh | sh" ${USERNAME}
+    su -c "git clone https://github.com/sos4nt/dynamic-colors ~/.dynamic-colors" ${USERNAME}
+    cat <<- 'EOF' >> /home/${USERNAME}/.zshrc
+		export PATH="${HOME}/.dynamic-colors/bin:${PATH}"
+		source $HOME/.dynamic-colors/completions/dynamic-colors.zsh
+		dynamic-colors init
+		EOF
 
     # Do some vim configuration.
     su -c "mkdir -p ~/.vim/autoload ~/.vim/bundle" ${USERNAME}
@@ -233,7 +335,7 @@ elif [ "${STEP}" == "chroot" ]; then
 		blacklist pcspkr
 		EOF
 
-    cat <<- 'EOF' >> /home/${USERNAME}/.bash_profile
+    cat <<- 'EOF' >> /home/${USERNAME}/.zlogin
 		[[ -z $DISPLAY && $XDG_VTNR -eq 1 ]] && exec startx
 		EOF
 
@@ -290,112 +392,157 @@ elif [ "${STEP}" == "chroot" ]; then
 		set cursorline
 		set hlsearch
 		EOF
-    chown aaronj:wheel /home/${USERNAME}/.vimrc
+    chown ${USERNAME}:wheel /home/${USERNAME}/.vimrc
 
     cat <<- 'EOF' >> /home/${USERNAME}/.xinitrc
 		xrdb -merge ~/.Xresources
 		exec i3
 		EOF
-    chown aaronj:wheel /home/${USERNAME}/.xinitrc
+    chown ${USERNAME}:wheel /home/${USERNAME}/.xinitrc
 
-    cat <<- 'EOF' >> /home/${USERNAME}/.Xresources
-		#define S_yellow        #b58900
-		#define S_orange        #cb4b16
-		#define S_red           #dc322f
-		#define S_magenta       #d33682
-		#define S_violet        #6c71c4
-		#define S_blue          #268bd2
-		#define S_cyan          #2aa198
-		#define S_green         #859900
+    su -c "mkdir /home/${USERNAME}/.urxvt" ${USERNAME}
+    cat <<- 'EOF' >> /home/${USERNAME}/.urxvt/urxvt-colors
+		sub on_user_command {
+		    my ($self, $cmd) = @_;
+		    my $output = `dynamic-colors cycle`;
+		    $self->cmd_parse($output);
+		}
+		EOF
+    chown ${USERNAME}:wheel /home/${USERNAME}/.urxvt/urxvt-colors
 
-		! Dark
-		#define S_base03        #002b36
-		#define S_base02        #073642
-		#define S_base01        #586e75
-		#define S_base00        #657b83
-		#define S_base0         #839496
-		#define S_base1         #93a1a1
-		#define S_base2         #eee8d5
-		#define S_base3         #fdf6e3
-
-		! Light
-		! #define S_base03        #fdf6e3
-		! #define S_base02        #eee8d5
-		! #define S_base01        #93a1a1
-		! #define S_base00        #839496
-		! #define S_base0         #657b83
-		! #define S_base1         #586e75
-		! #define S_base2         #073642
-		! #define S_base3         #002b36
-
-		URxvt*background:              S_base03
-		URxvt*foreground:              S_base0
-		URxvt*fading:                  40
-		URxvt*fadeColor:               S_base03
-		URxvt*cursorColor:             S_base1
-		URxvt*pointerColorBackground:  S_base01
-		URxvt*pointerColorForeground:  S_base1
-
-		URxvt*color0:                  S_base02
-		URxvt*color1:                  S_red
-		URxvt*color2:                  S_green
-		URxvt*color3:                  S_yellow
-		URxvt*color4:                  S_blue
-		URxvt*color5:                  S_magenta
-		URxvt*color6:                  S_cyan
-		URxvt*color7:                  S_base2
-		URxvt*color8:                  S_base03
-		URxvt*color9:                  S_orange
-		URxvt*color10:                 S_base01
-		URxvt*color11:                 S_base00
-		URxvt*color12:                 S_base0
-		URxvt*color13:                 S_violet
-		URxvt*color14:                 S_base1
-		URxvt*color15:                 S_base3
-
-		! urxvt
+    cat <<- EOF >> /home/${USERNAME}/.Xresources
 		URxvt*buffered: true
 		URxvt*cursorBlink: true
 		URxvt*underlineColor: yellow
-		URxvt*font:  xft:inconsolata:size=12:antialias=true
+		URxvt*font: xft:inconsolata:size=12:antialias=true
 		URxvt*depth: 32
 		URxvt*borderless: 1
 		URxvt*scrollBar: false
 		URxvt*loginShell: true
-		Urxvt*secondaryScroll:  true    # Enable Shift-PageUp/Down in screen
+		Urxvt*secondaryScroll: true
 		URxvt*saveLines: 50000
 		URxvt*termName: rxvt-unicode
-		URxvt.perl-ext-common: default
 		URxvt.matcher.button: 1
 		URxvt.intensityStyles: false
+		URxvt.fading: 0
+		URxvt.dynamicColors: on
+		URxvt.perl-lib: /home/${USERNAME}/.urxvt
+		URxvt.perl-ext-common: urxvt-colors
+		URxvt.keysym.F12: perl:urxvt-colors
 		EOF
-    chown aaronj:wheel /home/${USERNAME}/.Xresources
+    chown ${USERNAME}:wheel /home/${USERNAME}/.Xresources
 
-    cat <<- 'EOF' >> /home/${USERNAME}/.hgrc
+    cat <<- EOF >> /home/${USERNAME}/.hgrc
 		[ui]
-		username = Aaron Jones <aaron.jones@solidfire.com>
+		username = ${USER_FULL_NAME} <${USER_EMAIL}>
 		commitsubrepos = false
 
 		[auth]
 		default.prefix = https://solidfire.kilnhg.com/Code/Repositories
-		default.username = aaron.jones@solidfire.com
+		default.username = ${USER_EMAIL}
 
 		[extensions]
+		color =
+		histedit =
+		pager =
+		progress =
+		rebase =
+		shelve =
+		hgext.churn =
 		hgext.extdiff =
+		hgext.schemes =
 
 		[extdiff]
 		cmd.meld =
 		cmd.kdiff3 =
 
 		[merge-tools]
-		kdiff3.args = $base $local $other -o $output
+		kdiff3.args = \$base \$local \$other -o \$output
 
 		[pager]
 		pager = LESS='FSRX --tabs=4' less
 		attend = log,glog,diff
 
 		[trusted]
-		users = root, aaronj
+		users = root, ${USERNAME}
+
+		[schemes]
+		sf = https://solidfire.kilnhg.com/Code/Repositories/
 		EOF
-    chown aaronj:wheel /home/${USERNAME}/.hgrc
+    chown ${USERNAME}:wheel /home/${USERNAME}/.hgrc
+
+    su -c "mkdir -p /home/${USERNAME}/.i3" ${USERNAME}
+    cat <<- 'EOF' >> /home/${USERNAME}/.i3/config
+		set $mod Mod4
+		font pango:inconsolata 12
+		floating_modifier $mod
+		bindsym $mod+Return exec i3-sensible-terminal
+		bindsym $mod+Shift+q kill
+		bindsym $mod+d exec dmenu_run
+		bindsym $mod+j focus left
+		bindsym $mod+k focus down
+		bindsym $mod+l focus up
+		bindsym $mod+semicolon focus right
+		bindsym $mod+Left focus left
+		bindsym $mod+Down focus down
+		bindsym $mod+Up focus up
+		bindsym $mod+Right focus right
+		bindsym $mod+Shift+j move left
+		bindsym $mod+Shift+k move down
+		bindsym $mod+Shift+l move up
+		bindsym $mod+Shift+semicolon move right
+		bindsym $mod+Shift+Left move left
+		bindsym $mod+Shift+Down move down
+		bindsym $mod+Shift+Up move up
+		bindsym $mod+Shift+Right move right
+		bindsym $mod+h split h
+		bindsym $mod+v split v
+		bindsym $mod+f fullscreen toggle
+		bindsym $mod+s layout stacking
+		bindsym $mod+w layout tabbed
+		bindsym $mod+e layout toggle split
+		bindsym $mod+Shift+space floating toggle
+		bindsym $mod+space focus mode_toggle
+		bindsym $mod+a focus parent
+		bindsym $mod+1 workspace 1
+		bindsym $mod+2 workspace 2
+		bindsym $mod+3 workspace 3
+		bindsym $mod+4 workspace 4
+		bindsym $mod+5 workspace 5
+		bindsym $mod+6 workspace 6
+		bindsym $mod+7 workspace 7
+		bindsym $mod+8 workspace 8
+		bindsym $mod+9 workspace 9
+		bindsym $mod+0 workspace 10
+		bindsym $mod+Shift+1 move container to workspace 1
+		bindsym $mod+Shift+2 move container to workspace 2
+		bindsym $mod+Shift+3 move container to workspace 3
+		bindsym $mod+Shift+4 move container to workspace 4
+		bindsym $mod+Shift+5 move container to workspace 5
+		bindsym $mod+Shift+6 move container to workspace 6
+		bindsym $mod+Shift+7 move container to workspace 7
+		bindsym $mod+Shift+8 move container to workspace 8
+		bindsym $mod+Shift+9 move container to workspace 9
+		bindsym $mod+Shift+0 move container to workspace 10
+		bindsym $mod+Shift+c reload
+		bindsym $mod+Shift+r restart
+		bindsym $mod+Shift+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcut. Do you really want to exit i3? This will end your X session.' -b 'Yes, exit i3' 'i3-msg exit'"
+		mode "resize" {
+		    bindsym j resize shrink width 10 px or 10 ppt
+		    bindsym k resize grow height 10 px or 10 ppt
+		    bindsym l resize shrink height 10 px or 10 ppt
+		    bindsym semicolon resize grow width 10 px or 10 ppt
+		    bindsym Left resize shrink width 10 px or 10 ppt
+		    bindsym Down resize grow height 10 px or 10 ppt
+		    bindsym Up resize shrink height 10 px or 10 ppt
+		    bindsym Right resize grow width 10 px or 10 ppt
+		    bindsym Return mode "default"
+		    bindsym Escape mode "default"
+		}
+		bindsym $mod+r mode "resize"
+		bar {
+		    status_command i3status
+		}
+		EOF
+    chown ${USERNAME}:wheel /home/${USERNAME}/.i3/config
 fi
