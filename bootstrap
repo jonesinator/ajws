@@ -55,6 +55,30 @@ if [ "$#" -eq 0 ]; then
     done
 
     while true; do
+        read -s -p "Enter the desired kiln password: " KILN_PASSWORD1
+        echo ""
+        read -s -p "Enter the desired kiln password again: " KILN_PASSWORD2
+        echo ""
+        if [ "${KILN_PASSWORD1}" == "${KILN_PASSWORD2}" ]; then
+            break
+        else
+            echo "Passwords do not match!"
+        fi
+    done
+
+    while true; do
+        read -s -p "Enter the desired SolidFire SSH key password: " SSH_PASSWORD1
+        echo ""
+        read -s -p "Enter the desired SolidFire SSH key password again: " SSH_PASSWORD2
+        echo ""
+        if [ "${SSH_PASSWORD1}" == "${SSH_PASSWORD2}" ]; then
+            break
+        else
+            echo "Passwords do not match!"
+        fi
+    done
+
+    while true; do
         read -p "Enter the non-root user's full name: " USER_FULL_NAME
         if [ -n "${USER_FULL_NAME}" ]; then
             break
@@ -116,7 +140,7 @@ if [ "$#" -eq 0 ]; then
     printf "LABEL=${HOSTNAME} /mnt/defvol btrfs rw,noatime,discard,ssd,autodefrag,compress=lzo,space_cache 0 0" >> /mnt/etc/fstab
     cp -L -u `realpath $0` /mnt/root/bootstrap
     arch-chroot /mnt /bin/bash -c \
-        "/root/bootstrap \"${DEVICE}\" \"${HOSTNAME}\" \"${ROOT_PASSWORD1}\" \"${USERNAME}\" \"${USER_PASSWORD1}\" \"${USER_FULL_NAME}\" \"${USER_EMAIL}\" \"${COUNTRY}\" \"${TIMEZONE}\""
+        "/root/bootstrap \"${DEVICE}\" \"${HOSTNAME}\" \"${ROOT_PASSWORD1}\" \"${USERNAME}\" \"${USER_PASSWORD1}\" \"${KILN_PASSWORD1}\" \"${SSH_PASSWORD1}\" \"${USER_FULL_NAME}\" \"${USER_EMAIL}\" \"${COUNTRY}\" \"${TIMEZONE}\""
     rm /mnt/root/bootstrap
     sync
     umount -R /mnt
@@ -128,10 +152,12 @@ else
     ROOT_PASSWORD=$3
     USERNAME=$4
     USER_PASSWORD=$5
-    USER_FULL_NAME=$6
-    USER_EMAIL=$7
-    COUNTRY=$8
-    TIMEZONE=$9
+    KILN_PASSWORD=$6
+    SSH_PASSWORD=$7
+    USER_FULL_NAME=$8
+    USER_EMAIL=$9
+    COUNTRY=$10
+    TIMEZONE=$11
 
     # Standard boostrapping setup.
     echo ${HOSTNAME} > /etc/hostname
@@ -206,6 +232,8 @@ else
     pacman --noconfirm -S lsb-release
     pacman --noconfirm -S gdb
     pacman --noconfirm -S lua51
+    pacman --noconfirm -S cups
+    pacman --noconfirm -S ghostscript
     pacman --noconfirm -S hipchat
     pacman --noconfirm -S yaourt
 
@@ -269,14 +297,24 @@ else
     su -c "cd && git config --global user.email \"${USER_EMAIL}\"" ${USERNAME}
 
     # Some zsh/urxvt configuration.
-    # TODO THEME, VIM MODE, ETC.
+    su -c "cd && git clone https://github.com/powerline/fonts.git && cd fonts && ./install.sh && cd && rm -rf fonts" ${USERNAME}
     su -c "cd && curl -L https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh | sh" ${USERNAME}
     su -c "cd && git clone https://github.com/sos4nt/dynamic-colors ~/.dynamic-colors" ${USERNAME}
+    su -c "sed -i 's/robbyrussell/agnoster/' ~/.zshrc" ${USERNAME}
+    su -c "sed -i 's/git/git mercurial/' ~/.zshrc" ${USERNAME}
     cat <<- 'EOF' >> /home/${USERNAME}/.zshrc
 		export PATH="${HOME}/.dynamic-colors/bin:${PATH}"
 		source $HOME/.dynamic-colors/completions/dynamic-colors.zsh
 		dynamic-colors init
+		bindkey -v
 		EOF
+
+    # Configure xerox2 as the default printer.
+    systemctl enable org.cups.cupsd.service
+    systemctl start org.cups.cupsd.service
+    wget -P /usr/share/ppd/ http://bdr-jenkins.eng.solidfire.net/XeroxWorkCentre7525.ppd
+    lpadmin -p xerox2 -E -v "socket://172.17.5.203" -P /usr/share/ppd/XeroxWorkCentre7525.ppd
+    lpoptions -d xerox2
 
     # Do some vim configuration.
     su -c "mkdir -p ~/.vim/autoload ~/.vim/bundle" ${USERNAME}
@@ -290,15 +328,12 @@ else
     su -c "cd ~/.ssh && wget http://bdr-jenkins.eng.solidfire.net/keys/solidfire_dev_rsa.pub" ${USERNAME}
     su -c "cd ~/.ssh && wget http://bdr-jenkins.eng.solidfire.net/keys/solidfire_dev_rsa" ${USERNAME}
     su -c "chmod 600 ~/.ssh/solidfire_dev_rsa" ${USERNAME}
+    su -c "openssl rsa -in ~/.ssh/solidfire_dev_rsa -out ~/.ssh/solidfire_dev_rsa -passin pass:${SSH_PASSWORD}" ${USERNAME}
     cat <<- EOF >> /home/${USERNAME}/.ssh/config
 		Host ${HOSTNAME} ${HOSTNAME}.corp.solidfire.net
 		    ForwardX11 yes
 		    ForwardX11Trusted yes
 		    User ${USERNAME}
-		
-		# Kiln
-		Host solidfire.kilnhg.com
-		    IdentityFile ~/.ssh/kiln_rsa
 		
 		# Clients to possibly run GUI apps on
 		Host 192.168.135.* 172.26.75.* 172.26.8?.* 172.16.15?.*
@@ -330,7 +365,8 @@ else
 		    ForwardX11 no
 		    ForwardX11Trusted no
 		EOF
-    chmod 664 /home/${USERNAME}/.ssh/config
+    chmod 600 /home/${USERNAME}/.ssh/config
+    chown ${USERNAME}:wheel /home/${USERNAME}/.ssh/config
 
     cat <<- 'EOF' >> /etc/modprobe.d/nobeep.conf
 		blacklist pcspkr
@@ -392,6 +428,7 @@ else
 		set number
 		set cursorline
 		set hlsearch
+		set mouse=a
 		EOF
     chown ${USERNAME}:wheel /home/${USERNAME}/.vimrc
 
@@ -412,17 +449,20 @@ else
     chown ${USERNAME}:wheel /home/${USERNAME}/.urxvt/urxvt-colors
 
     cat <<- EOF >> /home/${USERNAME}/.Xresources
-		URxvt*buffered: true
-		URxvt*cursorBlink: true
-		URxvt*underlineColor: yellow
-		URxvt*font: xft:inconsolata:size=12:antialias=true
-		URxvt*depth: 32
-		URxvt*borderless: 1
-		URxvt*scrollBar: false
-		URxvt*loginShell: true
-		Urxvt*secondaryScroll: true
-		URxvt*saveLines: 50000
-		URxvt*termName: rxvt-unicode
+		URxvt.font: xft:inconsolata for powerline:pixelsize=18:antialias=true:hinting=true,xft:dejavu sans mono:pixelsize=18:antialias=true:hinting=true
+		URxvt.boldFont: xft:inconsolata for powerline:bold:pixelsize=18:antialias=true:hinting=true,xft:dejavu sans mono:bold:pixelsize=18:antialias=true:hinting=true
+		URxvt.italicFont: xft:inconsolata for powerline:italic:pixelsize=18:antialias=true:hinting=true,xft:dejavu sans mono:italic:pixelsize=18:antialias=true:hinting=true
+		URxvt.boldItalicFont: xft:inconsolata for powerline:bold:italic:pixelsize=18:antialias=true:hinting=true,xft:dejavu sans mono:bold:italic:pixelsize=18:antialias=true:hinting=true
+		URxvt.buffered: true
+		URxvt.cursorBlink: true
+		URxvt.underlineColor: yellow
+		URxvt.depth: 32
+		URxvt.borderless: 1
+		URxvt.scrollBar: false
+		URxvt.loginShell: true
+		URxvt.secondaryScroll: true
+		URxvt.saveLines: 50000
+		URxvt.termName: rxvt-unicode
 		URxvt.matcher.button: 1
 		URxvt.intensityStyles: false
 		URxvt.fading: 0
@@ -441,6 +481,7 @@ else
 		[auth]
 		default.prefix = https://solidfire.kilnhg.com/Code/Repositories
 		default.username = ${USER_EMAIL}
+		default.password = ${KILN_PASSWORD}
 
 		[extensions]
 		color =
@@ -465,12 +506,13 @@ else
 		attend = log,glog,diff
 
 		[trusted]
-		users = root, ${USERNAME}
+		users = root,${USERNAME}
 
 		[schemes]
 		sf = https://solidfire.kilnhg.com/Code/Repositories/
 		EOF
     chown ${USERNAME}:wheel /home/${USERNAME}/.hgrc
+    chmod 600 /home/${USERNAME}/.hgrc
 
     su -c "mkdir -p /home/${USERNAME}/.i3" ${USERNAME}
     cat <<- 'EOF' >> /home/${USERNAME}/.i3/config
