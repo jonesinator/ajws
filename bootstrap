@@ -100,7 +100,7 @@ if [ "$#" -eq 0 ]; then
     btrfs subvolume create __active/var
     btrfs subvolume create __snapshots
     cd
-    umount /mnt
+    umount -R /mnt
     mount -o subvol=__active/rootvol ${DEVICE} /mnt
     mkdir /mnt/{home,var}
     mount -o subvol=__active/home ${DEVICE} /mnt/home
@@ -118,7 +118,8 @@ if [ "$#" -eq 0 ]; then
     arch-chroot /mnt /bin/bash -c \
         "/root/bootstrap \"${DEVICE}\" \"${HOSTNAME}\" \"${ROOT_PASSWORD1}\" \"${USERNAME}\" \"${USER_PASSWORD1}\" \"${USER_FULL_NAME}\" \"${USER_EMAIL}\" \"${COUNTRY}\" \"${TIMEZONE}\""
     rm /mnt/root/bootstrap
-    sync && umount -R /mnt
+    sync
+    umount -R /mnt
     shutdown -r now
 
 else
@@ -264,13 +265,13 @@ else
     systemctl enable distbox.service
 
     # Some git configuration.
-    su -c "git config --global user.name \"${USER_FULL_NAME}\"" ${USERNAME}
-    su -c "git config --global user.email \"${USER_EMAIL}\"" ${USERNAME}
+    su -c "cd && git config --global user.name \"${USER_FULL_NAME}\"" ${USERNAME}
+    su -c "cd && git config --global user.email \"${USER_EMAIL}\"" ${USERNAME}
 
     # Some zsh/urxvt configuration.
     # TODO THEME, VIM MODE, ETC.
     su -c "cd && curl -L https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh | sh" ${USERNAME}
-    su -c "git clone https://github.com/sos4nt/dynamic-colors ~/.dynamic-colors" ${USERNAME}
+    su -c "cd && git clone https://github.com/sos4nt/dynamic-colors ~/.dynamic-colors" ${USERNAME}
     cat <<- 'EOF' >> /home/${USERNAME}/.zshrc
 		export PATH="${HOME}/.dynamic-colors/bin:${PATH}"
 		source $HOME/.dynamic-colors/completions/dynamic-colors.zsh
