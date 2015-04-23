@@ -147,17 +147,17 @@ if [ "$#" -eq 0 ]; then
     shutdown -r now
 
 else
-    DEVICE=$1
-    HOSTNAME=$2
-    ROOT_PASSWORD=$3
-    USERNAME=$4
-    USER_PASSWORD=$5
-    KILN_PASSWORD=$6
-    SSH_PASSWORD=$7
-    USER_FULL_NAME=$8
-    USER_EMAIL=$9
-    COUNTRY=$10
-    TIMEZONE=$11
+    DEVICE=${1}
+    HOSTNAME=${2}
+    ROOT_PASSWORD=${3}
+    USERNAME=${4}
+    USER_PASSWORD=${5}
+    KILN_PASSWORD=${6}
+    SSH_PASSWORD=${7}
+    USER_FULL_NAME=${8}
+    USER_EMAIL=${9}
+    COUNTRY=${10}
+    TIMEZONE=${11}
 
     # Standard boostrapping setup.
     echo ${HOSTNAME} > /etc/hostname
@@ -309,12 +309,14 @@ else
 		bindkey -v
 		EOF
 
-    # Configure xerox2 as the default printer.
+    # Configure xerox2 as the default printer for the non-root user.
     systemctl enable org.cups.cupsd.service
     /usr/bin/cupsd -l &
     wget -P /usr/share/ppd/ http://bdr-jenkins.eng.solidfire.net/XeroxWorkCentre7525.ppd
-    lpadmin -U ${USERNAME} -p xerox2 -E -v "socket://172.17.5.203" -P /usr/share/ppd/XeroxWorkCentre7525.ppd
-    lpoptions -U ${USERNAME} -d xerox2
+    echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+    su -c 'sudo lpadmin -p xerox2 -E -v "socket://172.17.5.203" -P /usr/share/ppd/XeroxWorkCentre7525.ppd' ${USERNAME}
+    su -c 'lpoptions -d xerox2' ${USERNAME}
+    sed -i "/${USERNAME}/d" /etc/sudoers
 
     # Do some vim configuration.
     su -c "mkdir -p ~/.vim/autoload ~/.vim/bundle" ${USERNAME}
