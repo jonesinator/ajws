@@ -313,8 +313,8 @@ else
     systemctl enable org.cups.cupsd.service
     /usr/bin/cupsd -l &
     wget -P /usr/share/ppd/ http://bdr-jenkins.eng.solidfire.net/XeroxWorkCentre7525.ppd
-    lpadmin -p xerox2 -E -v "socket://172.17.5.203" -P /usr/share/ppd/XeroxWorkCentre7525.ppd
-    lpoptions -d xerox2
+    lpadmin -U ${USERNAME} -p xerox2 -E -v "socket://172.17.5.203" -P /usr/share/ppd/XeroxWorkCentre7525.ppd
+    lpoptions -U ${USERNAME} -d xerox2
 
     # Do some vim configuration.
     su -c "mkdir -p ~/.vim/autoload ~/.vim/bundle" ${USERNAME}
