@@ -236,6 +236,10 @@ else
     pacman --noconfirm -S ghostscript
     pacman --noconfirm -S btrfs-progs
     pacman --noconfirm -S numlockx
+    pacman --noconfirm -S qemu
+    pacman --noconfirm -S virtmanager
+    pacman --noconfirm -S ebtables
+    pacman --noconfirm -S dnsmasq
     pacman --noconfirm -S hipchat
     pacman --noconfirm -S yaourt
 
@@ -254,6 +258,22 @@ else
     sudo -u ${USERNAME} yaourt --noconfirm -S kdiff3
     sudo -u ${USERNAME} yaourt --noconfirm -S google-chrome
     sed -i "/${USERNAME}/d" /etc/sudoers
+
+    # QEMU/KVM Setup
+    systemctl enable libvirtd.service
+    groupadd libvirt
+    gpasswd -a ${USERNAME} libvirt
+    sed -i '/#listen_tls/s/^#//' /etc/libvirt/libvirtd.conf
+    sed -i '/#unix_sock_group/s/^#//' /etc/libvirt/libvirtd.conf
+    sed -i '/#unix_sock_ro_perms/s/^#//' /etc/libvirt/libvirtd.conf
+    sed -i '/#unix_sock_rw_perms/s/^#//' /etc/libvirt/libvirtd.conf
+    sed -i '/#unix_sock_dir/s/^#//' /etc/libvirt/libvirtd.conf
+    sed -i '/#auth_unix_ro/s/^#//' /etc/libvirt/libvirtd.conf
+    sed -i '/#auth_unix_rw/s/^#//' /etc/libvirt/libvirtd.conf
+    sed -i '/#listen_tcp/s/^#//' /etc/libvirt/libvirtd.conf
+    sed -i '/#listen_tcp/s/^#//' /etc/libvirt/libvirtd.conf
+    sed -i 's/#auth_tcp = "sasl"/auth_tcp = "none"/' /etc/libvirt/libvirtd.conf
+    sed -i 's|LIBVIRTD_ARGS=""|LIBVIRTD_ARGS="-p /var/run/libvirtd.pid --listen"|' /etc/conf.d/libvirtd
 
     # Distbox/chroot stuff.
     cd ~/
