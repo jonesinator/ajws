@@ -310,14 +310,28 @@ else
 		bindkey -v
 		EOF
 
-    # Configure xerox2 as the default printer for the non-root user.
+    # Configure xerox2 as the default printer.
     systemctl enable org.cups.cupsd.service
-    /usr/bin/cupsd -l &
-    wget -P /usr/share/ppd/ http://bdr-jenkins.eng.solidfire.net/XeroxWorkCentre7525.ppd
-    echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-    su -c 'sudo lpadmin -p xerox2 -E -v "socket://172.17.5.203" -P /usr/share/ppd/XeroxWorkCentre7525.ppd' ${USERNAME}
-    su -c 'lpoptions -d xerox2' ${USERNAME}
-    sed -i "/${USERNAME}/d" /etc/sudoers
+    wget -P /etc/cups/ppd/ -O xerox2.ppd http://bdr-jenkins.eng.solidfire.net/XeroxWorkCentre7525.ppd
+    cat <<- 'EOF' >> /etc/cups/printers.conf
+		<DefaultPrinter xerox2>
+		UUID urn:uuid:fe319ffb-2d1b-36d3-4924-d788f38ab01c
+		Info xerox2
+		MakeModel Xerox WorkCentre 7525
+		DeviceURI socket://172.17.5.203
+		State Idle
+		StateTime 1429750590
+		Type 8433916
+		Accepting Yes
+		Shared Yes
+		JobSheets none none
+		QuotaPeriod 0
+		PageLimit 0
+		KLimit 0
+		OpPolicy default
+		ErrorPolicy stop-printer
+		</DefaultPrinter>
+		EOF
 
     # Do some vim configuration.
     su -c "mkdir -p ~/.vim/autoload ~/.vim/bundle" ${USERNAME}
