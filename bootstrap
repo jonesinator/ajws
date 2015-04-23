@@ -234,6 +234,7 @@ else
     pacman --noconfirm -S lua51
     pacman --noconfirm -S cups
     pacman --noconfirm -S ghostscript
+    pacman --noconfirm -S btrfs-progs
     pacman --noconfirm -S hipchat
     pacman --noconfirm -S yaourt
 
