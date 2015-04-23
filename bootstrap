@@ -325,6 +325,7 @@ else
     # Some git configuration.
     su -c "cd && git config --global user.name \"${USER_FULL_NAME}\"" ${USERNAME}
     su -c "cd && git config --global user.email \"${USER_EMAIL}\"" ${USERNAME}
+    su -c "cd && git config --global core.askpass ''" ${USERNAME}
 
     # Some zsh/urxvt configuration.
     su -c "cd && git clone https://github.com/powerline/fonts.git && cd fonts && ./install.sh && cd && rm -rf fonts" ${USERNAME}
