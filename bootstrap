@@ -235,6 +235,7 @@ else
     pacman --noconfirm -S cups
     pacman --noconfirm -S ghostscript
     pacman --noconfirm -S btrfs-progs
+    pacman --noconfirm -S numlockx
     pacman --noconfirm -S hipchat
     pacman --noconfirm -S yaourt
 
@@ -449,8 +450,15 @@ else
 		EOF
     chown ${USERNAME}:wheel /home/${USERNAME}/.vimrc
 
+    mkdir /etc/systemd/system/getty@.service.d
+    cat <<- 'EOF' >> /etc/systemd/system/getty@.service.d/activate-numlock.conf
+		[Service]
+		ExecStartPre=/bin/sh -c 'setleds +num < /dev/%I'
+		EOF
+
     cat <<- 'EOF' >> /home/${USERNAME}/.xinitrc
 		xrdb -merge ~/.Xresources
+		numlockx &
 		exec i3
 		EOF
     chown ${USERNAME}:wheel /home/${USERNAME}/.xinitrc
