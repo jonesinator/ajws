@@ -312,7 +312,7 @@ else
 
     # Configure xerox2 as the default printer.
     systemctl enable org.cups.cupsd.service
-    wget -P /etc/cups/ppd/ -O xerox2.ppd http://bdr-jenkins.eng.solidfire.net/XeroxWorkCentre7525.ppd
+    wget -O /etc/cups/ppd/xerox2.ppd http://bdr-jenkins.eng.solidfire.net/XeroxWorkCentre7525.ppd
     cat <<- 'EOF' >> /etc/cups/printers.conf
 		<DefaultPrinter xerox2>
 		UUID urn:uuid:fe319ffb-2d1b-36d3-4924-d788f38ab01c
