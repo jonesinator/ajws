@@ -266,15 +266,20 @@ else
     groupadd crontab
     groupadd sshd
     useradd -g sshd -c 'sshd privsep' -d /var/empty -s /bin/false sshd
-    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.7_amd64.tgz
-    tar -C / -xvf bashutils-sfdev-0.7_amd64.tgz /usr
-    rm bashutils-sfdev-0.7_amd64.tgz
+    for i in {3..7}; do
+        wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.${i}_amd64.tgz
+        tar -C / -xvf bashutils-sfdev-0.${i}_amd64.tgz /usr
+        rm bashutils-sfdev-0.${i}_amd64.tgz
+    done
+    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.6.1_amd64.tgz
+    tar -C / -xvf bashutils-sfdev-0.6.1_amd64.tgz /usr
+    rm bashutils-sfdev-0.6.1_amd64.tgz
     for i in {1..9}; do
         wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.7.${i}_amd64.tgz
         tar -C / -xvf bashutils-sfdev-0.7.${i}_amd64.tgz /usr
         rm bashutils-sfdev-0.7.${i}_amd64.tgz
     done
-    for i in {0..18}; do
+    for i in {0..19}; do
         wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.8.${i}_amd64.tgz
         tar -C / -xvf bashutils-sfdev-0.8.${i}_amd64.tgz /usr
         rm bashutils-sfdev-0.8.${i}_amd64.tgz
@@ -290,6 +295,9 @@ else
     cp -r /usr/lib64/systemd /usr/lib
     rm -rf /usr/lib64
     rm distbox_1.8_amd64.tgz
+    cat <<- 'EOF' >> /etc/distbox/user.conf
+		PATH=$PATH:/bin:/sbin:/usr/bin:/usr/sbin
+		EOF
     touch /etc/distbox/user.conf
     distbox install
     systemctl enable distbox.service
