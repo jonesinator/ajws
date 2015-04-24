@@ -237,7 +237,7 @@ else
     pacman --noconfirm -S btrfs-progs
     pacman --noconfirm -S numlockx
     pacman --noconfirm -S qemu
-    pacman --noconfirm -S virtmanager
+    pacman --noconfirm -S virt-manager
     pacman --noconfirm -S ebtables
     pacman --noconfirm -S dnsmasq
     pacman --noconfirm -S hipchat
