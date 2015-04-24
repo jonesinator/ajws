@@ -318,7 +318,8 @@ else
     cat <<- 'EOF' >> /etc/distbox/user.conf
 		PATH=$PATH:/bin:/sbin:/usr/bin:/usr/sbin
 		EOF
-    touch /etc/distbox/user.conf
+    # Temporary hack before distbox 1.9.
+    sed -i 's|/usr/bin|/usr/local/bin|' /usr/lib/systemd/system/distbox.service
     distbox install
     systemctl enable distbox.service
 
@@ -331,6 +332,7 @@ else
     su -c "cd && git clone https://github.com/powerline/fonts.git && cd fonts && ./install.sh && cd && rm -rf fonts" ${USERNAME}
     su -c "cd && curl -L https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh | sh" ${USERNAME}
     su -c "cd && git clone https://github.com/sos4nt/dynamic-colors ~/.dynamic-colors" ${USERNAME}
+    su -c 'cd && echo -n solarized-dark > ~/.dynamic-colors/colorscheme' ${USERNAME}
     su -c "sed -i 's/robbyrussell/agnoster/' ~/.zshrc" ${USERNAME}
     su -c "sed -i 's/git/git mercurial/' ~/.zshrc" ${USERNAME}
     cat <<- 'EOF' >> /home/${USERNAME}/.zshrc
@@ -420,8 +422,11 @@ else
 		EOF
 
     cat <<- 'EOF' >> /home/${USERNAME}/.zlogin
-		[[ -z $DISPLAY && $XDG_VTNR -eq 1 ]] && exec startx
+		if [[ -z $DISPLAY && $XDG_VTNR -eq 1 ]]; then
+		    exec startx
+		fi
 		EOF
+    chown ${USERNAME}:wheel /home/${USERNAME}/.zlogin
 
     cat <<- 'EOF' >> /etc/X11/xorg.conf.d/20-nouveau.conf
 		Section "Monitor"
