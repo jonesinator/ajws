@@ -131,9 +131,9 @@ else
     rm solidfire_signing_key.pub
     pacman-key --lsign-key support@solidfire.com
     cat <<- 'EOF' >> /etc/pacman.conf
-        [solidfire]
-        Server = http://bdr-jenkins.eng.solidfire.net/archlinux/$repo/os/$arch
-        EOF
+		[solidfire]
+		Server = http://bdr-jenkins.eng.solidfire.net/archlinux/$repo/os/$arch
+		EOF
 
     # Update and install the necessary packages.
     pacman --noconfirm -Syyu
@@ -157,5 +157,5 @@ else
 		#!/bin/bash
 		export PATH=$PATH:/bin:/sbin:/usr/sbin
 		EOF
-	chmod a+x /etc/profile.d/solidfire.sh
+    chmod a+x /etc/profile.d/solidfire.sh
 fi
