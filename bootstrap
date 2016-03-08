@@ -76,6 +76,7 @@ if [ "$#" -eq 0 ]; then
     mkfs.btrfs -f -L ${HOSTNAME} ${DEVICE}
     mount ${DEVICE} /mnt
     cd /mnt
+    btrfs subvolume create main
     btrfs subvolume create main/root
     btrfs subvolume create main/home
     btrfs subvolume create snaps
@@ -124,14 +125,10 @@ else
     # I know this fails due to btrfs weirdness.
     set +e; mkinitcpio -p linux; set -e
 
-    # Configure bootloader.
-    pacman --noconfirm -S grub
-    grub-install --target=i386-pc --recheck ${DEVICE}
-    grub-mkconfig -o /boot/grub/grub.cfg
-
     # Add the SolidFire package repository.
-    wget http://bdr-jenkins.eng.solidfire.net/solidfire_signing_key.pub
+    curl -O http://bdr-jenkins.eng.solidfire.net/solidfire_signing_key.pub
     pacman-key --add solidfire_signing_key.pub
+    rm solidfire_signing_key.pub
     pacman-key --lsign-key support@solidfire.com
     cat <<- 'EOF' >> /etc/pacman.conf
         [solidfire]
@@ -140,11 +137,25 @@ else
 
     # Update and install the necessary packages.
     pacman --noconfirm -Syyu
-    pacman --noconfirm -S base-devel openssh git mercurial sudo solidfire-dev
+    pacman --noconfirm -S base-devel grub openssh git mercurial sudo solidfire-dev
+    pacman -Ss bashutils | grep "^s" | grep -v installed | grep -v "1.0.1-" | awk '{print $1}' | \
+        xargs -I {} pacman --noconfirm -S {}
 
     # Configure non-root user and give all wheel users sudo access.
     useradd -m -g wheel -s /usr/bin/bash ${USERNAME}
     echo "root:${ROOT_PASSWORD}" | chpasswd
     echo "${USERNAME}:${USER_PASSWORD}" | chpasswd
     sed -i '/^# %wheel ALL=(ALL) ALL/s/^# //' /etc/sudoers
+    
+    # Configure bootloader.
+    grub-install --target=i386-pc --recheck ${DEVICE}
+    grub-mkconfig -o /boot/grub/grub.cfg
+    
+    # Stuff to get solidfire working.
+    groupadd crontab
+    cat <<- 'EOF' >> /etc/profile.d/solidfire.sh
+		#!/bin/bash
+		export PATH=$PATH:/bin:/sbin:/usr/sbin
+		EOF
+	chmod a+x /etc/profile.d/solidfire.sh
 fi
