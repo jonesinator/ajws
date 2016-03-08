@@ -55,48 +55,6 @@ if [ "$#" -eq 0 ]; then
     done
 
     while true; do
-        read -s -p "Enter the desired kiln password: " KILN_PASSWORD1
-        echo ""
-        read -s -p "Enter the desired kiln password again: " KILN_PASSWORD2
-        echo ""
-        if [ "${KILN_PASSWORD1}" == "${KILN_PASSWORD2}" ]; then
-            break
-        else
-            echo "Passwords do not match!"
-        fi
-    done
-
-    while true; do
-        read -s -p "Enter the desired SolidFire SSH key password: " SSH_PASSWORD1
-        echo ""
-        read -s -p "Enter the desired SolidFire SSH key password again: " SSH_PASSWORD2
-        echo ""
-        if [ "${SSH_PASSWORD1}" == "${SSH_PASSWORD2}" ]; then
-            break
-        else
-            echo "Passwords do not match!"
-        fi
-    done
-
-    while true; do
-        read -p "Enter the non-root user's full name: " USER_FULL_NAME
-        if [ -n "${USER_FULL_NAME}" ]; then
-            break
-        else
-            echo "User full name cannot be blank!"
-        fi
-    done
-
-    while true; do
-        read -p "Enter the non-root user's email: " USER_EMAIL
-        if [ -n "${USER_EMAIL}" ]; then
-            break
-        else
-            echo "User email cannot be blank!"
-        fi
-    done
-
-    while true; do
         read -p "Enter the desired country (e.g. US): " COUNTRY
         if [ -n "${COUNTRY}" ]; then
             break
@@ -114,33 +72,30 @@ if [ "$#" -eq 0 ]; then
         fi
     done
 
-    # Configure the SSD with btrfs.
+    # Configure the SSD with btrfs using a separate volume for home directories.
     mkfs.btrfs -f -L ${HOSTNAME} ${DEVICE}
     mount ${DEVICE} /mnt
     cd /mnt
-    btrfs subvolume create __active
-    btrfs subvolume create __active/rootvol
-    btrfs subvolume create __active/home
-    btrfs subvolume create __active/var
-    btrfs subvolume create __snapshots
+    btrfs subvolume create main/root
+    btrfs subvolume create main/home
+    btrfs subvolume create snaps
     cd
     umount -R /mnt
-    mount -o subvol=__active/rootvol ${DEVICE} /mnt
-    mkdir /mnt/{home,var}
-    mount -o subvol=__active/home ${DEVICE} /mnt/home
-    mount -o subvol=__active/var ${DEVICE} /mnt/var
+    mount -o subvol=main/root ${DEVICE} /mnt
+    mkdir /mnt/home
+    mount -o subvol=main/home ${DEVICE} /mnt/home
 
     # Bootstrap the operating system.
     wget -qO - "https://www.archlinux.org/mirrorlist/?country=${COUNTRY}&protocol=http&ip_version=4&use_mirror_status=on" | \
         sed 's/^#Server/Server/' > /etc/pacman.d/mirrorlist
-    pacstrap /mnt base base-devel
+    pacstrap /mnt base
     genfstab -U -p /mnt >> /mnt/etc/fstab
     sed -i 's/relatime,ssd,space_cache/noatime,discard,ssd,autodefrag,compress=lzo,space_cache/' /mnt/etc/fstab
     mkdir /mnt/defvol
     printf "LABEL=${HOSTNAME} /mnt/defvol btrfs rw,noatime,discard,ssd,autodefrag,compress=lzo,space_cache 0 0" >> /mnt/etc/fstab
     cp -L -u `realpath $0` /mnt/root/bootstrap
     arch-chroot /mnt /bin/bash -c \
-        "/root/bootstrap \"${DEVICE}\" \"${HOSTNAME}\" \"${ROOT_PASSWORD1}\" \"${USERNAME}\" \"${USER_PASSWORD1}\" \"${KILN_PASSWORD1}\" \"${SSH_PASSWORD1}\" \"${USER_FULL_NAME}\" \"${USER_EMAIL}\" \"${COUNTRY}\" \"${TIMEZONE}\""
+        "/root/bootstrap \"${DEVICE}\" \"${HOSTNAME}\" \"${ROOT_PASSWORD1}\" \"${USERNAME}\" \"${USER_PASSWORD1}\" \"${COUNTRY}\" \"${TIMEZONE}\""
     rm /mnt/root/bootstrap
     sync
     umount -R /mnt
@@ -152,12 +107,8 @@ else
     ROOT_PASSWORD=${3}
     USERNAME=${4}
     USER_PASSWORD=${5}
-    KILN_PASSWORD=${6}
-    SSH_PASSWORD=${7}
-    USER_FULL_NAME=${8}
-    USER_EMAIL=${9}
-    COUNTRY=${10}
-    TIMEZONE=${11}
+    COUNTRY=${6}
+    TIMEZONE=${7}
 
     # Standard boostrapping setup.
     echo ${HOSTNAME} > /etc/hostname
@@ -178,473 +129,22 @@ else
     grub-install --target=i386-pc --recheck ${DEVICE}
     grub-mkconfig -o /boot/grub/grub.cfg
 
-    # Configure pacman for atlassian, yaourt, and infinality.
-    curl https://www.hipchat.com/keys/hipchat-linux.key | GNUPGHOME=/etc/pacman.d/gnupg gpg --import
-    mkdir -p /root/.gnupg
-    touch /root/.gnupg/dirmngr_ldapservers.conf
-    pacman-key -r 962DDE58
-    pacman-key --lsign-key 962DDE58
+    # Add the SolidFire package repository.
+    wget http://bdr-jenkins.eng.solidfire.net/solidfire_signing_key.pub
+    pacman-key --add solidfire_signing_key.pub
+    pacman-key --lsign-key support@solidfire.com
     cat <<- 'EOF' >> /etc/pacman.conf
-		[atlassian]
-		SigLevel = PackageOptional DatabaseRequired TrustAll
-		Server = http://downloads.hipchat.com/linux/arch/$arch
-		[archlinuxfr]
-		SigLevel = Never
-		Server = http://repo.archlinux.fr/$arch
-		[infinality-bundle]
-		Server = http://bohoomil.com/repo/$arch
-		[infinality-bundle-fonts]
-		Server = http://bohoomil.com/repo/fonts
-		EOF
+        [solidfire]
+        Server = http://bdr-jenkins.eng.solidfire.net/archlinux/$repo/os/$arch
+        EOF
 
-    # Update the system and install several packages.
+    # Update and install the necessary packages.
     pacman --noconfirm -Syyu
-    pacman --noconfirm -S infinality-bundle
-    pacman --noconfirm -S ibfonts-meta-extended
-    pacman --noconfirm -S zsh
-    pacman --noconfirm -S zsh-completions
-    pacman --noconfirm -S openssh
-    pacman --noconfirm -S ttf-inconsolata
-    pacman --noconfirm -S git
-    pacman --noconfirm -S mercurial
-    pacman --noconfirm -S gvim
-    pacman --noconfirm -S sudo
-    pacman --noconfirm -S xorg-server
-    pacman --noconfirm -S xorg-xrandr
-    pacman --noconfirm -S xorg-xinit
-    pacman --noconfirm -S xorg-xdpyinfo
-    pacman --noconfirm -S xorg-xrdb
-    pacman --noconfirm -S xf86-video-nouveau
-    pacman --noconfirm -S rxvt-unicode
-    pacman --noconfirm -S i3
-    pacman --noconfirm -S dmenu
-    pacman --noconfirm -S alsa-utils
-    pacman --noconfirm -S gstreamer0.10-base
-    pacman --noconfirm -S gstreamer0.10
-    pacman --noconfirm -S meld
-    pacman --noconfirm -S jq
-    pacman --noconfirm -S distcc
-    pacman --noconfirm -S xmlstarlet
-    pacman --noconfirm -S pigz
-    pacman --noconfirm -S wget
-    pacman --noconfirm -S dnsutils
-    pacman --noconfirm -S cronie
-    pacman --noconfirm -S lsb-release
-    pacman --noconfirm -S gdb
-    pacman --noconfirm -S lua51
-    pacman --noconfirm -S cups
-    pacman --noconfirm -S ghostscript
-    pacman --noconfirm -S btrfs-progs
-    pacman --noconfirm -S numlockx
-    pacman --noconfirm -S qemu
-    pacman --noconfirm -S virt-manager
-    pacman --noconfirm -S ebtables
-    pacman --noconfirm -S dnsmasq
-    pacman --noconfirm -S hipchat
-    pacman --noconfirm -S yaourt
+    pacman --noconfirm -S base-devel openssh git mercurial sudo solidfire-dev
 
     # Configure non-root user and give all wheel users sudo access.
-    useradd -m -g wheel -s /usr/bin/zsh ${USERNAME}
+    useradd -m -g wheel -s /usr/bin/bash ${USERNAME}
     echo "root:${ROOT_PASSWORD}" | chpasswd
     echo "${USERNAME}:${USER_PASSWORD}" | chpasswd
     sed -i '/^# %wheel ALL=(ALL) ALL/s/^# //' /etc/sudoers
-
-    # Stupid yaourt can't run as root. So run it as non-root but first change
-    # sudoers so we can run it without a password. Undo that when we're done.
-    echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-    sudo -u ${USERNAME} yaourt --noconfirm -S jre
-    sudo -u ${USERNAME} yaourt --noconfirm -S spotify
-    sudo -u ${USERNAME} yaourt --noconfirm -S start-stop-daemon
-    sudo -u ${USERNAME} yaourt --noconfirm -S kdiff3
-    sudo -u ${USERNAME} yaourt --noconfirm -S google-chrome
-    sed -i "/${USERNAME}/d" /etc/sudoers
-
-    # QEMU/KVM Setup
-    systemctl enable libvirtd.service
-    groupadd libvirt
-    gpasswd -a ${USERNAME} libvirt
-    sed -i '/#listen_tls/s/^#//' /etc/libvirt/libvirtd.conf
-    sed -i '/#unix_sock_group/s/^#//' /etc/libvirt/libvirtd.conf
-    sed -i '/#unix_sock_ro_perms/s/^#//' /etc/libvirt/libvirtd.conf
-    sed -i '/#unix_sock_rw_perms/s/^#//' /etc/libvirt/libvirtd.conf
-    sed -i '/#unix_sock_dir/s/^#//' /etc/libvirt/libvirtd.conf
-    sed -i '/#auth_unix_ro/s/^#//' /etc/libvirt/libvirtd.conf
-    sed -i '/#auth_unix_rw/s/^#//' /etc/libvirt/libvirtd.conf
-    sed -i '/#listen_tcp/s/^#//' /etc/libvirt/libvirtd.conf
-    sed -i '/#listen_tcp/s/^#//' /etc/libvirt/libvirtd.conf
-    sed -i 's/#auth_tcp = "sasl"/auth_tcp = "none"/' /etc/libvirt/libvirtd.conf
-    sed -i 's|LIBVIRTD_ARGS=""|LIBVIRTD_ARGS="-p /var/run/libvirtd.pid --listen"|' /etc/conf.d/libvirtd
-
-    # Distbox/chroot stuff.
-    cd ~/
-    cat <<- 'EOF' >> /etc/profile.d/solidfire.sh
-		#!/bin/bash
-		export PATH=$PATH:/bin:/sbin:/usr/sbin
-		EOF
-    export PATH=$PATH:/bin:/sbin:/usr/sbin
-    chmod a+x /etc/profile.d/solidfire.sh
-    groupadd crontab
-    groupadd sshd
-    useradd -g sshd -c 'sshd privsep' -d /var/empty -s /bin/false sshd
-    for i in {3..7}; do
-        wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.${i}_amd64.tgz
-        tar -C / -xvf bashutils-sfdev-0.${i}_amd64.tgz /usr
-        rm bashutils-sfdev-0.${i}_amd64.tgz
-    done
-    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.6.1_amd64.tgz
-    tar -C / -xvf bashutils-sfdev-0.6.1_amd64.tgz /usr
-    rm bashutils-sfdev-0.6.1_amd64.tgz
-    for i in {1..9}; do
-        wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.7.${i}_amd64.tgz
-        tar -C / -xvf bashutils-sfdev-0.7.${i}_amd64.tgz /usr
-        rm bashutils-sfdev-0.7.${i}_amd64.tgz
-    done
-    for i in {0..19}; do
-        wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/bashutils-sfdev-0.8.${i}_amd64.tgz
-        tar -C / -xvf bashutils-sfdev-0.8.${i}_amd64.tgz /usr
-        rm bashutils-sfdev-0.8.${i}_amd64.tgz
-    done
-    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/murder-sfdev-0.1.2-p1_amd64.tgz
-    tar -C / -xvf murder-sfdev-0.1.2-p1_amd64.tgz /usr/local/
-    mv /usr/local/lib/python2.7/dist-packages/murder-0.1.2-p1 /usr/lib/python2.7/site-packages
-    rm -rf /usr/local/lib/python2.7
-    rm murder-sfdev-0.1.2-p1_amd64.tgz
-    wget http://bdr-jenkins.eng.solidfire.net/libs/distfiles/distbox_1.8_amd64.tgz
-    tar -C / -xvf distbox_1.8_amd64.tgz /etc/distbox
-    tar -C / -xvf distbox_1.8_amd64.tgz /usr
-    cp -r /usr/lib64/systemd /usr/lib
-    rm -rf /usr/lib64
-    rm distbox_1.8_amd64.tgz
-    cat <<- 'EOF' >> /etc/distbox/user.conf
-		PATH=$PATH:/bin:/sbin:/usr/bin:/usr/sbin
-		EOF
-    # Temporary hack before distbox 1.9.
-    sed -i 's|/usr/bin|/usr/local/bin|' /usr/lib/systemd/system/distbox.service
-    distbox install
-    systemctl enable distbox.service
-
-    # Some git configuration.
-    su -c "cd && git config --global user.name \"${USER_FULL_NAME}\"" ${USERNAME}
-    su -c "cd && git config --global user.email \"${USER_EMAIL}\"" ${USERNAME}
-    su -c "cd && git config --global core.askpass ''" ${USERNAME}
-
-    # Some zsh/urxvt configuration.
-    su -c "cd && git clone https://github.com/powerline/fonts.git && cd fonts && ./install.sh && cd && rm -rf fonts" ${USERNAME}
-    su -c "cd && curl -L https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh | sh" ${USERNAME}
-    su -c "cd && git clone https://github.com/sos4nt/dynamic-colors ~/.dynamic-colors" ${USERNAME}
-    su -c 'cd && echo -n solarized-dark > ~/.dynamic-colors/colorscheme' ${USERNAME}
-    su -c "sed -i 's/robbyrussell/agnoster/' ~/.zshrc" ${USERNAME}
-    su -c "sed -i 's/git/git mercurial/' ~/.zshrc" ${USERNAME}
-    cat <<- 'EOF' >> /home/${USERNAME}/.zshrc
-		export PATH="${HOME}/.dynamic-colors/bin:${PATH}"
-		source $HOME/.dynamic-colors/completions/dynamic-colors.zsh
-		dynamic-colors init
-		bindkey -v
-		EOF
-
-    # Configure xerox2 as the default printer.
-    systemctl enable org.cups.cupsd.service
-    wget -O /etc/cups/ppd/xerox2.ppd http://bdr-jenkins.eng.solidfire.net/XeroxWorkCentre7525.ppd
-    cat <<- 'EOF' >> /etc/cups/printers.conf
-		<DefaultPrinter xerox2>
-		UUID urn:uuid:fe319ffb-2d1b-36d3-4924-d788f38ab01c
-		Info xerox2
-		MakeModel Xerox WorkCentre 7525
-		DeviceURI socket://172.17.5.203
-		State Idle
-		StateTime 1429750590
-		Type 8433916
-		Accepting Yes
-		Shared Yes
-		JobSheets none none
-		QuotaPeriod 0
-		PageLimit 0
-		KLimit 0
-		OpPolicy default
-		ErrorPolicy stop-printer
-		</DefaultPrinter>
-		EOF
-
-    # Do some vim configuration.
-    su -c "mkdir -p ~/.vim/autoload ~/.vim/bundle" ${USERNAME}
-    su -c "curl -LSso ~/.vim/autoload/pathogen.vim https://tpo.pe/pathogen.vim" ${USERNAME}
-    su -c "cd ~/.vim/bundle && git clone git://github.com/tpope/vim-sensible.git" ${USERNAME}
-    su -c "cd ~/.vim/bundle && git clone git://github.com/altercation/vim-colors-solarized.git" ${USERNAME}
-
-    # Configure ssh.
-    systemctl enable sshd.socket
-    su -c "mkdir ~/.ssh" ${USERNAME}
-    su -c "cd ~/.ssh && wget http://bdr-jenkins.eng.solidfire.net/keys/solidfire_dev_rsa.pub" ${USERNAME}
-    su -c "cd ~/.ssh && wget http://bdr-jenkins.eng.solidfire.net/keys/solidfire_dev_rsa" ${USERNAME}
-    su -c "chmod 600 ~/.ssh/solidfire_dev_rsa" ${USERNAME}
-    su -c "openssl rsa -in ~/.ssh/solidfire_dev_rsa -out ~/.ssh/solidfire_dev_rsa -passin pass:${SSH_PASSWORD}" ${USERNAME}
-    cat <<- EOF >> /home/${USERNAME}/.ssh/config
-		Host ${HOSTNAME} ${HOSTNAME}.corp.solidfire.net
-		    ForwardX11 yes
-		    ForwardX11Trusted yes
-		    User ${USERNAME}
-		
-		# Clients to possibly run GUI apps on
-		Host 192.168.135.* 172.26.75.* 172.26.8?.* 172.16.15?.*
-		    ForwardX11 yes
-		    ForwardX11Trusted yes
-		    User root
-		    IdentityFile ~/.ssh/solidfire_dev_rsa
-		
-		# Options for SolidFire nodes
-		Host 192.168.133.* 172.26.65.* 192.168.139.* 172.24.65.* 172.24.58.* 172.30.65.*
-		    User sfadmin
-		    IdentityFile ~/.ssh/solidfire_dev_rsa
-		
-		# Options for all hosts
-		Host *
-		    AddressFamily inet
-		    CheckHostIp no
-		    Cipher arcfour256
-		    ConnectTimeout 20
-		    ConnectionAttempts 1
-		    GSSAPIAuthentication no
-		    HashKnownHosts no
-		    ServerAliveInterval 60
-		    ServerAliveCountMax 6
-		    StrictHostKeyChecking no
-		    TCPKeepAlive yes
-		    UserKnownHostsFile /dev/null
-		    User root
-		    ForwardX11 no
-		    ForwardX11Trusted no
-		EOF
-    chmod 600 /home/${USERNAME}/.ssh/config
-    chown ${USERNAME}:wheel /home/${USERNAME}/.ssh/config
-
-    cat <<- 'EOF' >> /etc/modprobe.d/nobeep.conf
-		blacklist pcspkr
-		EOF
-
-    cat <<- 'EOF' >> /home/${USERNAME}/.zlogin
-		if [[ -z $DISPLAY && $XDG_VTNR -eq 1 ]]; then
-		    exec startx
-		fi
-		EOF
-    chown ${USERNAME}:wheel /home/${USERNAME}/.zlogin
-
-    cat <<- 'EOF' >> /etc/X11/xorg.conf.d/20-nouveau.conf
-		Section "Monitor"
-		    Identifier "DellLeft"
-		    Option "PreferredMode" "26x0x1600_60.00"
-		    DisplaySize 641 402
-		EndSection
-
-		Section "Monitor"
-		    Identifier "DellRight"
-		    Option "PreferredMode" "26x0x1600_60.00"
-		    Option "LeftOf" "DellLeft"
-		    DisplaySize 641 402
-		EndSection
-
-		Section "Device"
-		    Identifier "nvidia card"
-		    Driver "nouveau"
-		    Option "Monitor-DVI-D-1" "DellLeft"
-		    Option "Monitor-DVI-I-1" "DellRight"
-		EndSection
-
-		Section "Screen"
-		    Identifier "screen1"
-		    Monitor "DellLeft"
-		    DefaultDepth 24
-		    SubSection "Display"
-		        Depth 24
-		        Virtual 2560 1600
-		    EndSubSection
-		    Device "nvidia card"
-		EndSection
-
-		Section "ServerLayout"
-		    Identifier "layout1"
-		    Screen "screen1"
-		EndSection
-		EOF
-
-    cat <<- 'EOF' >> /home/${USERNAME}/.vimrc
-		set nocompatible
-		set t_Co=16
-		call pathogen#infect()
-		syntax on
-		set background=dark
-		colorscheme solarized
-		filetype plugin indent on
-		set shiftwidth=4
-		set tabstop=4
-		set expandtab
-		set number
-		set cursorline
-		set hlsearch
-		set mouse=a
-		EOF
-    chown ${USERNAME}:wheel /home/${USERNAME}/.vimrc
-
-    mkdir /etc/systemd/system/getty@.service.d
-    cat <<- 'EOF' >> /etc/systemd/system/getty@.service.d/activate-numlock.conf
-		[Service]
-		ExecStartPre=/bin/sh -c 'setleds +num < /dev/%I'
-		EOF
-
-    cat <<- 'EOF' >> /home/${USERNAME}/.xinitrc
-		xrdb -merge ~/.Xresources
-		numlockx &
-		exec i3
-		EOF
-    chown ${USERNAME}:wheel /home/${USERNAME}/.xinitrc
-
-    su -c "mkdir /home/${USERNAME}/.urxvt" ${USERNAME}
-    cat <<- 'EOF' >> /home/${USERNAME}/.urxvt/urxvt-colors
-		sub on_user_command {
-		    my ($self, $cmd) = @_;
-		    my $output = `dynamic-colors cycle`;
-		    $self->cmd_parse($output);
-		}
-		EOF
-    chown ${USERNAME}:wheel /home/${USERNAME}/.urxvt/urxvt-colors
-
-    cat <<- EOF >> /home/${USERNAME}/.Xresources
-		URxvt.font: xft:inconsolata for powerline:pixelsize=18:antialias=true:hinting=true,xft:dejavu sans mono:pixelsize=18:antialias=true:hinting=true
-		URxvt.boldFont: xft:inconsolata for powerline:bold:pixelsize=18:antialias=true:hinting=true,xft:dejavu sans mono:bold:pixelsize=18:antialias=true:hinting=true
-		URxvt.italicFont: xft:inconsolata for powerline:italic:pixelsize=18:antialias=true:hinting=true,xft:dejavu sans mono:italic:pixelsize=18:antialias=true:hinting=true
-		URxvt.boldItalicFont: xft:inconsolata for powerline:bold:italic:pixelsize=18:antialias=true:hinting=true,xft:dejavu sans mono:bold:italic:pixelsize=18:antialias=true:hinting=true
-		URxvt.buffered: true
-		URxvt.cursorBlink: true
-		URxvt.underlineColor: yellow
-		URxvt.depth: 32
-		URxvt.borderless: 1
-		URxvt.scrollBar: false
-		URxvt.loginShell: true
-		URxvt.secondaryScroll: true
-		URxvt.saveLines: 50000
-		URxvt.termName: rxvt-unicode
-		URxvt.matcher.button: 1
-		URxvt.intensityStyles: false
-		URxvt.fading: 0
-		URxvt.dynamicColors: on
-		URxvt.perl-lib: /home/${USERNAME}/.urxvt
-		URxvt.perl-ext-common: urxvt-colors
-		URxvt.keysym.F12: perl:urxvt-colors
-		EOF
-    chown ${USERNAME}:wheel /home/${USERNAME}/.Xresources
-
-    cat <<- EOF >> /home/${USERNAME}/.hgrc
-		[ui]
-		username = ${USER_FULL_NAME} <${USER_EMAIL}>
-		commitsubrepos = false
-
-		[auth]
-		default.prefix = https://solidfire.kilnhg.com/Code/Repositories
-		default.username = ${USER_EMAIL}
-		default.password = ${KILN_PASSWORD}
-
-		[extensions]
-		color =
-		histedit =
-		pager =
-		progress =
-		rebase =
-		shelve =
-		hgext.churn =
-		hgext.extdiff =
-		hgext.schemes =
-
-		[extdiff]
-		cmd.meld =
-		cmd.kdiff3 =
-
-		[merge-tools]
-		kdiff3.args = \$base \$local \$other -o \$output
-
-		[pager]
-		pager = LESS='FSRX --tabs=4' less
-		attend = log,glog,diff
-
-		[trusted]
-		users = root,${USERNAME}
-
-		[schemes]
-		sf = https://solidfire.kilnhg.com/Code/Repositories/
-		EOF
-    chown ${USERNAME}:wheel /home/${USERNAME}/.hgrc
-    chmod 600 /home/${USERNAME}/.hgrc
-
-    su -c "mkdir -p /home/${USERNAME}/.i3" ${USERNAME}
-    cat <<- 'EOF' >> /home/${USERNAME}/.i3/config
-		set $mod Mod4
-		font pango:inconsolata 12
-		floating_modifier $mod
-		bindsym $mod+Return exec i3-sensible-terminal
-		bindsym $mod+Shift+q kill
-		bindsym $mod+d exec dmenu_run
-		bindsym $mod+j focus left
-		bindsym $mod+k focus down
-		bindsym $mod+l focus up
-		bindsym $mod+semicolon focus right
-		bindsym $mod+Left focus left
-		bindsym $mod+Down focus down
-		bindsym $mod+Up focus up
-		bindsym $mod+Right focus right
-		bindsym $mod+Shift+j move left
-		bindsym $mod+Shift+k move down
-		bindsym $mod+Shift+l move up
-		bindsym $mod+Shift+semicolon move right
-		bindsym $mod+Shift+Left move left
-		bindsym $mod+Shift+Down move down
-		bindsym $mod+Shift+Up move up
-		bindsym $mod+Shift+Right move right
-		bindsym $mod+h split h
-		bindsym $mod+v split v
-		bindsym $mod+f fullscreen toggle
-		bindsym $mod+s layout stacking
-		bindsym $mod+w layout tabbed
-		bindsym $mod+e layout toggle split
-		bindsym $mod+Shift+space floating toggle
-		bindsym $mod+space focus mode_toggle
-		bindsym $mod+a focus parent
-		bindsym $mod+1 workspace 1
-		bindsym $mod+2 workspace 2
-		bindsym $mod+3 workspace 3
-		bindsym $mod+4 workspace 4
-		bindsym $mod+5 workspace 5
-		bindsym $mod+6 workspace 6
-		bindsym $mod+7 workspace 7
-		bindsym $mod+8 workspace 8
-		bindsym $mod+9 workspace 9
-		bindsym $mod+0 workspace 10
-		bindsym $mod+Shift+1 move container to workspace 1
-		bindsym $mod+Shift+2 move container to workspace 2
-		bindsym $mod+Shift+3 move container to workspace 3
-		bindsym $mod+Shift+4 move container to workspace 4
-		bindsym $mod+Shift+5 move container to workspace 5
-		bindsym $mod+Shift+6 move container to workspace 6
-		bindsym $mod+Shift+7 move container to workspace 7
-		bindsym $mod+Shift+8 move container to workspace 8
-		bindsym $mod+Shift+9 move container to workspace 9
-		bindsym $mod+Shift+0 move container to workspace 10
-		bindsym $mod+Shift+c reload
-		bindsym $mod+Shift+r restart
-		bindsym $mod+Shift+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcut. Do you really want to exit i3? This will end your X session.' -b 'Yes, exit i3' 'i3-msg exit'"
-		mode "resize" {
-		    bindsym j resize shrink width 10 px or 10 ppt
-		    bindsym k resize grow height 10 px or 10 ppt
-		    bindsym l resize shrink height 10 px or 10 ppt
-		    bindsym semicolon resize grow width 10 px or 10 ppt
-		    bindsym Left resize shrink width 10 px or 10 ppt
-		    bindsym Down resize grow height 10 px or 10 ppt
-		    bindsym Up resize shrink height 10 px or 10 ppt
-		    bindsym Right resize grow width 10 px or 10 ppt
-		    bindsym Return mode "default"
-		    bindsym Escape mode "default"
-		}
-		bindsym $mod+r mode "resize"
-		bar {
-		    status_command i3status
-		}
-		EOF
-    chown ${USERNAME}:wheel /home/${USERNAME}/.i3/config
 fi
