@@ -142,7 +142,7 @@ else
         xargs -I {} pacman --noconfirm -S {}
 
     # Configure non-root user and give all wheel users sudo access.
-    useradd -m -G wheel -s /usr/bin/bash ${USERNAME}
+    useradd -m -G wheel -s /bin/bash ${USERNAME}
     echo "root:${ROOT_PASSWORD}" | chpasswd
     echo "${USERNAME}:${USER_PASSWORD}" | chpasswd
     sed -i '/^# %wheel ALL=(ALL) ALL/s/^# //' /etc/sudoers
