@@ -162,4 +162,339 @@ else
 		export PATH=$PATH:/bin:/sbin:/usr/sbin
 		EOF
     chmod a+x /etc/profile.d/solidfire.sh
+
+    ####
+    # EXTRA STUFF ON TOP OF BASE SOLIDFIRE INSTALL
+    ####
+
+    # Configure pacman for atlassian, yaourt, and infinality.
+    mkdir -p /root/.gnupg
+    touch /root/.gnupg/dirmngr_ldapservers.conf
+    pacman-key -r 962DDE58
+    pacman-key --lsign-key 962DDE58
+    cat <<- 'EOF' >> /etc/pacman.conf
+		[archlinuxfr]
+		SigLevel = Never
+		Server = http://repo.archlinux.fr/$arch
+		[infinality-bundle]
+		Server = http://bohoomil.com/repo/$arch
+		[infinality-bundle-fonts]
+		Server = http://bohoomil.com/repo/fonts
+		EOF
+
+    # Install new packages.
+    pacman --noconfirm -Syy
+    pacman --noconfirm -S zsh \
+                          zsh-completions \
+                          ttf-inconsolata \
+                          gvim \
+                          xorg-server \
+                          xorg-xrandr \
+                          xorg-xinit \
+                          xorg-xdpyinfo \
+                          xorg-xrdb \
+                          xf86-video-nouveau \
+                          rxvt-unicode \
+                          i3 \
+                          dmenu \
+                          meld \
+                          cronie \
+                          numlockx \
+                          qemu \
+                          virt-manager \
+                          btrfs-progs \
+                          cups \
+                          ghostscript \
+                          alsa-utils \
+                          hipchat \
+                          yaourt \
+                          infinality-bundle \
+                          ibfonts-meta-extended \
+                          gstreamer0.10-base \
+                          gstreamer0.10 \
+                          firefox
+
+    # Yaourt can't run as root. So run it as non-root but first change
+    # sudoers so we can run it without a password. Undo that when we're done.
+    echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+    sudo -u ${USERNAME} yaourt --noconfirm -S hipchat
+    sudo -u ${USERNAME} yaourt --noconfirm -S spotify
+    sudo -u ${USERNAME} yaourt --noconfirm -S kdiff3-qt
+    sed -i "/${USERNAME}/d" /etc/sudoers
+
+    # QEMU/KVM Setup
+    systemctl enable libvirtd.service
+    groupadd libvirt
+    gpasswd -a ${USERNAME} libvirt
+
+    # Some zsh/urxvt configuration.
+    chsh -s /usr/bin/zsh ${USERNAME}
+    su -c "cd && git clone https://github.com/powerline/fonts.git && cd fonts && ./install.sh && cd && rm -rf fonts" ${USERNAME}
+    su -c "cd && curl -L https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh | sh" ${USERNAME}
+    su -c "cd && git clone https://github.com/sos4nt/dynamic-colors ~/.dynamic-colors" ${USERNAME}
+    su -c 'cd && echo -n solarized-dark > ~/.dynamic-colors/colorscheme' ${USERNAME}
+    su -c "sed -i 's/robbyrussell/agnoster/' ~/.zshrc" ${USERNAME}
+    su -c "sed -i 's/git/git mercurial/' ~/.zshrc" ${USERNAME}
+    cat <<- 'EOF' >> /home/${USERNAME}/.zshrc
+		export PATH="${HOME}/.dynamic-colors/bin:${PATH}"
+		source $HOME/.dynamic-colors/completions/dynamic-colors.zsh
+		dynamic-colors init
+		bindkey -v
+		EOF
+
+    # Configure xerox2 as the default printer.
+    systemctl enable org.cups.cupsd.service
+    wget -O /etc/cups/ppd/xerox2.ppd http://bdr-jenkins.eng.solidfire.net/XeroxWorkCentre7525.ppd
+    cat <<- 'EOF' >> /etc/cups/printers.conf
+		<DefaultPrinter xerox2>
+		UUID urn:uuid:fe319ffb-2d1b-36d3-4924-d788f38ab01c
+		Info xerox2
+		MakeModel Xerox WorkCentre 7525
+		DeviceURI socket://172.17.5.203
+		State Idle
+		StateTime 1429750590
+		Type 8433916
+		Accepting Yes
+		Shared Yes
+		JobSheets none none
+		QuotaPeriod 0
+		PageLimit 0
+		KLimit 0
+		OpPolicy default
+		ErrorPolicy stop-printer
+		</DefaultPrinter>
+		EOF
+
+    # Do some vim configuration.
+    su -c "mkdir -p ~/.vim/autoload ~/.vim/bundle" ${USERNAME}
+    su -c "curl -LSso ~/.vim/autoload/pathogen.vim https://tpo.pe/pathogen.vim" ${USERNAME}
+    su -c "cd ~/.vim/bundle && git clone git://github.com/tpope/vim-sensible.git" ${USERNAME}
+    su -c "cd ~/.vim/bundle && git clone git://github.com/altercation/vim-colors-solarized.git" ${USERNAME}
+    cat <<- 'EOF' >> /home/${USERNAME}/.vimrc
+		set nocompatible
+		set t_Co=16
+		call pathogen#infect()
+		syntax on
+		set background=dark
+		colorscheme solarized
+		filetype plugin indent on
+		set shiftwidth=4
+		set tabstop=4
+		set expandtab
+		set number
+		set cursorline
+		set hlsearch
+		set mouse=a
+		EOF
+    chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.vimrc
+
+    # Configure ssh.
+    systemctl enable sshd.socket
+    su -c "mkdir ~/.ssh" ${USERNAME}
+    su -c "cd ~/.ssh && wget http://bdr-jenkins.eng.solidfire.net/keys/solidfire_dev_rsa.pub" ${USERNAME}
+    su -c "cd ~/.ssh && wget http://bdr-jenkins.eng.solidfire.net/keys/solidfire_dev_rsa" ${USERNAME}
+    su -c "chmod 600 ~/.ssh/solidfire_dev_rsa" ${USERNAME}
+    cat <<- EOF >> /home/${USERNAME}/.ssh/config
+		Host ${HOSTNAME} ${HOSTNAME}.corp.solidfire.net
+		    ForwardX11 yes
+		    ForwardX11Trusted yes
+		    User ${USERNAME}
+		
+		# Options for SolidFire nodes
+		Host 192.168.133.* 172.26.65.* 192.168.139.* 172.24.65.* 172.24.58.* 172.30.65.*
+		    User sfadmin
+		    IdentityFile ~/.ssh/solidfire_dev_rsa
+		
+		# Options for all hosts
+		Host *
+		    AddressFamily inet
+		    CheckHostIp no
+		    Cipher arcfour256
+		    ConnectTimeout 20
+		    ConnectionAttempts 1
+		    GSSAPIAuthentication no
+		    HashKnownHosts no
+		    ServerAliveInterval 60
+		    ServerAliveCountMax 6
+		    StrictHostKeyChecking no
+		    TCPKeepAlive yes
+		    UserKnownHostsFile /dev/null
+		    User root
+		    ForwardX11 no
+		    ForwardX11Trusted no
+		EOF
+    chmod 600 /home/${USERNAME}/.ssh/config
+    chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.ssh/config
+
+    cat <<- 'EOF' >> /etc/modprobe.d/nobeep.conf
+		blacklist pcspkr
+		EOF
+
+    cat <<- 'EOF' >> /home/${USERNAME}/.zlogin
+		if [[ -z $DISPLAY && $XDG_VTNR -eq 1 ]]; then
+		    exec startx
+		fi
+		EOF
+    chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.zlogin
+
+    cat <<- 'EOF' >> /etc/X11/xorg.conf.d/20-nouveau.conf
+		Section "Monitor"
+		    Identifier "DellLeft"
+		    Option "PreferredMode" "26x0x1600_60.00"
+		    DisplaySize 641 402
+		EndSection
+
+		Section "Monitor"
+		    Identifier "DellRight"
+		    Option "PreferredMode" "26x0x1600_60.00"
+		    Option "LeftOf" "DellLeft"
+		    DisplaySize 641 402
+		EndSection
+
+		Section "Device"
+		    Identifier "nvidia card"
+		    Driver "nouveau"
+		    Option "Monitor-DVI-D-1" "DellLeft"
+		    Option "Monitor-DVI-I-1" "DellRight"
+		EndSection
+
+		Section "Screen"
+		    Identifier "screen1"
+		    Monitor "DellLeft"
+		    DefaultDepth 24
+		    SubSection "Display"
+		        Depth 24
+		        Virtual 2560 1600
+		    EndSubSection
+		    Device "nvidia card"
+		EndSection
+
+		Section "ServerLayout"
+		    Identifier "layout1"
+		    Screen "screen1"
+		EndSection
+		EOF
+
+    mkdir /etc/systemd/system/getty@.service.d
+    cat <<- 'EOF' >> /etc/systemd/system/getty@.service.d/activate-numlock.conf
+		[Service]
+		ExecStartPre=/bin/sh -c 'setleds +num < /dev/%I'
+		EOF
+
+    cat <<- 'EOF' >> /home/${USERNAME}/.xinitrc
+		xrdb -merge ~/.Xresources
+		numlockx &
+		exec i3
+		EOF
+    chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.xinitrc
+
+    su -c "mkdir /home/${USERNAME}/.urxvt" ${USERNAME}
+    cat <<- 'EOF' >> /home/${USERNAME}/.urxvt/urxvt-colors
+		sub on_user_command {
+		    my ($self, $cmd) = @_;
+		    my $output = `dynamic-colors cycle`;
+		    $self->cmd_parse($output);
+		}
+		EOF
+    chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.urxvt/urxvt-colors
+
+    cat <<- EOF >> /home/${USERNAME}/.Xresources
+		URxvt.font: xft:inconsolata for powerline:pixelsize=18:antialias=true:hinting=true,xft:dejavu sans mono:pixelsize=18:antialias=true:hinting=true
+		URxvt.boldFont: xft:inconsolata for powerline:bold:pixelsize=18:antialias=true:hinting=true,xft:dejavu sans mono:bold:pixelsize=18:antialias=true:hinting=true
+		URxvt.italicFont: xft:inconsolata for powerline:italic:pixelsize=18:antialias=true:hinting=true,xft:dejavu sans mono:italic:pixelsize=18:antialias=true:hinting=true
+		URxvt.boldItalicFont: xft:inconsolata for powerline:bold:italic:pixelsize=18:antialias=true:hinting=true,xft:dejavu sans mono:bold:italic:pixelsize=18:antialias=true:hinting=true
+		URxvt.buffered: true
+		URxvt.cursorBlink: true
+		URxvt.underlineColor: yellow
+		URxvt.depth: 32
+		URxvt.borderless: 1
+		URxvt.scrollBar: false
+		URxvt.loginShell: true
+		URxvt.secondaryScroll: true
+		URxvt.saveLines: 50000
+		URxvt.termName: rxvt-unicode
+		URxvt.matcher.button: 1
+		URxvt.intensityStyles: false
+		URxvt.fading: 0
+		URxvt.dynamicColors: on
+		URxvt.perl-lib: /home/${USERNAME}/.urxvt
+		URxvt.perl-ext-common: urxvt-colors
+		URxvt.keysym.F12: perl:urxvt-colors
+		EOF
+    chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.Xresources
+
+    su -c "mkdir -p /home/${USERNAME}/.i3" ${USERNAME}
+    cat <<- 'EOF' >> /home/${USERNAME}/.i3/config
+		set $mod Mod4
+		font pango:inconsolata 12
+		floating_modifier $mod
+		bindsym $mod+Return exec i3-sensible-terminal
+		bindsym $mod+Shift+q kill
+		bindsym $mod+d exec dmenu_run
+		bindsym $mod+j focus left
+		bindsym $mod+k focus down
+		bindsym $mod+l focus up
+		bindsym $mod+semicolon focus right
+		bindsym $mod+Left focus left
+		bindsym $mod+Down focus down
+		bindsym $mod+Up focus up
+		bindsym $mod+Right focus right
+		bindsym $mod+Shift+j move left
+		bindsym $mod+Shift+k move down
+		bindsym $mod+Shift+l move up
+		bindsym $mod+Shift+semicolon move right
+		bindsym $mod+Shift+Left move left
+		bindsym $mod+Shift+Down move down
+		bindsym $mod+Shift+Up move up
+		bindsym $mod+Shift+Right move right
+		bindsym $mod+h split h
+		bindsym $mod+v split v
+		bindsym $mod+f fullscreen toggle
+		bindsym $mod+s layout stacking
+		bindsym $mod+w layout tabbed
+		bindsym $mod+e layout toggle split
+		bindsym $mod+Shift+space floating toggle
+		bindsym $mod+space focus mode_toggle
+		bindsym $mod+a focus parent
+		bindsym $mod+1 workspace 1
+		bindsym $mod+2 workspace 2
+		bindsym $mod+3 workspace 3
+		bindsym $mod+4 workspace 4
+		bindsym $mod+5 workspace 5
+		bindsym $mod+6 workspace 6
+		bindsym $mod+7 workspace 7
+		bindsym $mod+8 workspace 8
+		bindsym $mod+9 workspace 9
+		bindsym $mod+0 workspace 10
+		bindsym $mod+Shift+1 move container to workspace 1
+		bindsym $mod+Shift+2 move container to workspace 2
+		bindsym $mod+Shift+3 move container to workspace 3
+		bindsym $mod+Shift+4 move container to workspace 4
+		bindsym $mod+Shift+5 move container to workspace 5
+		bindsym $mod+Shift+6 move container to workspace 6
+		bindsym $mod+Shift+7 move container to workspace 7
+		bindsym $mod+Shift+8 move container to workspace 8
+		bindsym $mod+Shift+9 move container to workspace 9
+		bindsym $mod+Shift+0 move container to workspace 10
+		bindsym $mod+Shift+c reload
+		bindsym $mod+Shift+r restart
+		bindsym $mod+Shift+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcut. Do you really want to exit i3? This will end your X session.' -b 'Yes, exit i3' 'i3-msg exit'"
+		mode "resize" {
+		    bindsym j resize shrink width 10 px or 10 ppt
+		    bindsym k resize grow height 10 px or 10 ppt
+		    bindsym l resize shrink height 10 px or 10 ppt
+		    bindsym semicolon resize grow width 10 px or 10 ppt
+		    bindsym Left resize shrink width 10 px or 10 ppt
+		    bindsym Down resize grow height 10 px or 10 ppt
+		    bindsym Up resize shrink height 10 px or 10 ppt
+		    bindsym Right resize grow width 10 px or 10 ppt
+		    bindsym Return mode "default"
+		    bindsym Escape mode "default"
+		}
+		bindsym $mod+r mode "resize"
+		bar {
+		    status_command i3status
+		}
+		EOF
+    chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.i3/config
 fi
