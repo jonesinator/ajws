@@ -223,7 +223,6 @@ else
 
     # QEMU/KVM Setup
     systemctl enable libvirtd.service
-    groupadd libvirt
     gpasswd -a ${USERNAME} libvirt
 
     # Some zsh/urxvt configuration.
