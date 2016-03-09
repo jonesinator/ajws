@@ -137,7 +137,7 @@ else
 
     # Update and install the necessary packages.
     pacman --noconfirm -Syyu
-    pacman --noconfirm -S base-devel grub openssh git mercurial solidfire-dev
+    pacman --noconfirm -S base-devel grub git mercurial solidfire-dev
     pacman -Ss bashutils | grep "^s" | grep -v installed | grep -v "1.0.1-" | awk '{print $1}' | \
         xargs -I {} pacman --noconfirm -S {}
 
@@ -152,8 +152,11 @@ else
     grub-mkconfig -o /boot/grub/grub.cfg
     
     # Stuff to get solidfire working.
-    pacman --noconfirm -S dnsutils jre7-openjdk sudo
+    pacman --noconfirm -S dnsutils jre7-openjdk sudo sshpass python
     groupadd crontab
+    cat <<- 'EOF' >> /etc/modules-load.d/solidfire.conf
+		loop
+		EOF
     cat <<- 'EOF' >> /etc/profile.d/solidfire.sh
 		#!/bin/bash
 		export PATH=$PATH:/bin:/sbin:/usr/sbin
