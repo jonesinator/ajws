@@ -206,7 +206,6 @@ else
                           cups \
                           ghostscript \
                           alsa-utils \
-                          hipchat \
                           yaourt \
                           infinality-bundle \
                           ibfonts-meta-extended \
