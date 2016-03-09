@@ -211,7 +211,11 @@ else
                           ibfonts-meta-extended \
                           gstreamer0.10-base \
                           gstreamer0.10 \
-                          firefox
+                          firefox \
+                          ebtables \
+                          dnsmasq \
+                          bridge-utils \
+                          openbsd-netcat
 
     # Yaourt can't run as root. So run it as non-root but first change
     # sudoers so we can run it without a password. Undo that when we're done.
