@@ -239,6 +239,7 @@ else
                           xorg-xinit \
                           xorg-xdpyinfo \
                           xorg-xrdb \
+                          xorg-xhost \
                           xf86-video-nouveau \
                           rxvt-unicode \
                           i3 \
