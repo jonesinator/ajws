@@ -238,7 +238,7 @@ else
     su -c "sed -i 's/robbyrussell/agnoster/' ~/.zshrc" ${USERNAME}
     su -c "sed -i 's/git/git mercurial/' ~/.zshrc" ${USERNAME}
     cat <<- 'EOF' >> /home/${USERNAME}/.zshrc
-		export PATH="${HOME}/.dynamic-colors/bin:${PATH}"
+		export PATH="/bin:/sbin:/usr/sbin:${PATH}:${HOME}/.dynamic-colors/bin"
 		source $HOME/.dynamic-colors/completions/dynamic-colors.zsh
 		dynamic-colors init
 		bindkey -v
