@@ -55,6 +55,48 @@ if [ "$#" -eq 0 ]; then
     done
 
     while true; do
+        read -s -p "Enter the desired kiln password: " KILN_PASSWORD1
+        echo ""
+        read -s -p "Enter the desired kiln password again: " KILN_PASSWORD2
+        echo ""
+        if [ "${KILN_PASSWORD1}" == "${KILN_PASSWORD2}" ]; then
+            break
+        else
+            echo "Passwords do not match!"
+        fi
+    done
+
+    while true; do
+        read -s -p "Enter the desired SolidFire SSH key password: " SSH_PASSWORD1
+        echo ""
+        read -s -p "Enter the desired SolidFire SSH key password again: " SSH_PASSWORD2
+        echo ""
+        if [ "${SSH_PASSWORD1}" == "${SSH_PASSWORD2}" ]; then
+            break
+        else
+            echo "Passwords do not match!"
+        fi
+    done
+
+    while true; do
+        read -p "Enter the non-root user's full name: " USER_FULL_NAME
+        if [ -n "${USER_FULL_NAME}" ]; then
+            break
+        else
+            echo "User full name cannot be blank!"
+        fi
+    done
+
+    while true; do
+        read -p "Enter the non-root user's email: " USER_EMAIL
+        if [ -n "${USER_EMAIL}" ]; then
+            break
+        else
+            echo "User email cannot be blank!"
+        fi
+    done
+
+    while true; do
         read -p "Enter the desired country (e.g. US): " COUNTRY
         if [ -n "${COUNTRY}" ]; then
             break
@@ -96,7 +138,7 @@ if [ "$#" -eq 0 ]; then
     printf "LABEL=${HOSTNAME} /mnt/defvol btrfs rw,noatime,discard,ssd,autodefrag,compress=lzo,space_cache 0 0" >> /mnt/etc/fstab
     cp -L -u `realpath $0` /mnt/root/bootstrap
     arch-chroot /mnt /bin/bash -c \
-        "/root/bootstrap \"${DEVICE}\" \"${HOSTNAME}\" \"${ROOT_PASSWORD1}\" \"${USERNAME}\" \"${USER_PASSWORD1}\" \"${COUNTRY}\" \"${TIMEZONE}\""
+        "/root/bootstrap \"${DEVICE}\" \"${HOSTNAME}\" \"${ROOT_PASSWORD1}\" \"${USERNAME}\" \"${USER_PASSWORD1}\" \"${KILN_PASSWORD1}\" \"${SSH_PASSWORD1}\" \"${USER_FULL_NAME}\" \"${USER_EMAIL}\" \"${COUNTRY}\" \"${TIMEZONE}\""
     rm /mnt/root/bootstrap
     sync
     umount -R /mnt
@@ -108,8 +150,12 @@ else
     ROOT_PASSWORD=${3}
     USERNAME=${4}
     USER_PASSWORD=${5}
-    COUNTRY=${6}
-    TIMEZONE=${7}
+    KILN_PASSWORD=${6}
+    SSH_PASSWORD=${7}
+    USER_FULL_NAME=${8}
+    USER_EMAIL=${9}
+    COUNTRY=${10}
+    TIMEZONE=${11}
 
     # Standard boostrapping setup.
     echo ${HOSTNAME} > /etc/hostname
@@ -215,7 +261,8 @@ else
                           ebtables \
                           dnsmasq \
                           bridge-utils \
-                          openbsd-netcat
+                          openbsd-netcat \
+                          nfs-utils
 
     # Yaourt can't run as root. So run it as non-root but first change
     # sudoers so we can run it without a password. Undo that when we're done.
@@ -228,6 +275,53 @@ else
     # QEMU/KVM Setup
     systemctl enable libvirtd.service
     gpasswd -a ${USERNAME} libvirt
+
+    # Some git configuration.
+    su -c "cd && git config --global user.name \"${USER_FULL_NAME}\"" ${USERNAME}
+    su -c "cd && git config --global user.email \"${USER_EMAIL}\"" ${USERNAME}
+    su -c "cd && git config --global core.askpass ''" ${USERNAME}
+
+    # Some mercurial configuration.
+    cat <<- EOF >> /home/${USERNAME}/.hgrc
+		[ui]
+		username = ${USER_FULL_NAME} <${USER_EMAIL}>
+		commitsubrepos = false
+
+		[auth]
+		default.prefix = https://solidfire.kilnhg.com/Code/Repositories
+		default.username = ${USER_EMAIL}
+		default.password = ${KILN_PASSWORD}
+
+		[extensions]
+		color =
+		histedit =
+		pager =
+		progress =
+		rebase =
+		shelve =
+		hgext.churn =
+		hgext.extdiff =
+		hgext.schemes =
+
+		[extdiff]
+		cmd.meld =
+		cmd.kdiff3 =
+
+		[merge-tools]
+		kdiff3.args = \$base \$local \$other -o \$output
+
+		[pager]
+		pager = LESS='FSRX --tabs=4' less
+		attend = log,glog,diff
+
+		[trusted]
+		users = root,${USERNAME}
+
+		[schemes]
+		sf = https://solidfire.kilnhg.com/Code/Repositories/
+		EOF
+    chown ${USERNAME}:wheel /home/${USERNAME}/.hgrc
+    chmod 600 /home/${USERNAME}/.hgrc
 
     # Some zsh/urxvt configuration.
     chsh -s /usr/bin/zsh ${USERNAME}
@@ -296,6 +390,7 @@ else
     su -c "cd ~/.ssh && wget http://bdr-jenkins.eng.solidfire.net/keys/solidfire_dev_rsa.pub" ${USERNAME}
     su -c "cd ~/.ssh && wget http://bdr-jenkins.eng.solidfire.net/keys/solidfire_dev_rsa" ${USERNAME}
     su -c "chmod 600 ~/.ssh/solidfire_dev_rsa" ${USERNAME}
+    su -c "openssl rsa -in ~/.ssh/solidfire_dev_rsa -out ~/.ssh/solidfire_dev_rsa -passin pass:${SSH_PASSWORD}" ${USERNAME}
     cat <<- EOF >> /home/${USERNAME}/.ssh/config
 		Host ${HOSTNAME} ${HOSTNAME}.corp.solidfire.net
 		    ForwardX11 yes
@@ -303,8 +398,13 @@ else
 		    User ${USERNAME}
 		
 		# Options for SolidFire nodes
-		Host 192.168.133.* 172.26.65.* 192.168.139.* 172.24.65.* 172.24.58.* 172.30.65.*
+		Host bdr-en* vwc-en* zdc-xn* 10.30.* 172.24.* 172.26.* 172.30.* 192.168.133.* 192.168.160.*
 		    User sfadmin
+		    IdentityFile ~/.ssh/solidfire_dev_rsa
+
+		# Options for Jenkins
+		Host bdr-jenkins*
+		    User root
 		    IdentityFile ~/.ssh/solidfire_dev_rsa
 		
 		# Options for all hosts
