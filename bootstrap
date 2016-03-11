@@ -263,7 +263,8 @@ else
                           dnsmasq \
                           bridge-utils \
                           openbsd-netcat \
-                          nfs-utils
+                          nfs-utils \
+                          samba
 
     # Yaourt can't run as root. So run it as non-root but first change
     # sudoers so we can run it without a password. Undo that when we're done.
@@ -276,6 +277,12 @@ else
     # QEMU/KVM Setup
     systemctl enable libvirtd.service
     gpasswd -a ${USERNAME} libvirt
+    
+    # Samba share for home directory.
+    cp /etc/samba/smb.conf.default /etc/samba/smb.conf
+    sed -i 's/MYGROUP/WORKGROUP/' /etc/samba/smb.conf
+    systemctl enable smbd nmbd
+    printf '${USER_PASSWORD}\n${USER_PASSWORD}\n' | pdbedit -a -u ${USERNAME} --password-from-stdin
 
     # Some git configuration.
     su -c "cd && git config --global user.name \"${USER_FULL_NAME}\"" ${USERNAME}
